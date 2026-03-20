@@ -734,7 +734,7 @@
                   log.debug('Analysis fetched via CosmosAsync');
                   return data;
               }
-              log.warn('Analysis response missing segments/beats — skipping');
+              log.warn('Analysis response missing segments/beats — data preview:', JSON.stringify(data)?.slice(0, 200));
               return null;
           } catch (e) {
               const errStr = String(e?.message || e?.error || e);
@@ -1717,6 +1717,7 @@
   // =============================
   let currentAnalysis = null;
   let analysisInProgress = false;
+  let lastAttemptedTrackId = null;
   
   async function analyzeCurrentTrack() {
       if (analysisInProgress) {
@@ -1724,6 +1725,12 @@
           return;
       }
   
+      const _trackId = spotifyIdFromUri(getCurrentTrackMeta()?.uri);
+      if (_trackId && _trackId === lastAttemptedTrackId && !analysisCache.get(_trackId)) {
+          log.debug("Already attempted this track — skipping repeat");
+          return;
+      }
+
       analysisInProgress = true;
       const display = document.getElementById("chord-display") || window._chorductionChordDisplay;
       if (display) {
@@ -1741,6 +1748,7 @@
               analysisInProgress = false;
               return;
           }
+          lastAttemptedTrackId = trackId;
   
           // Get audio analysis — passes onStatus so rate-limit countdown is visible
           const analysis = await getAudioAnalysis(trackId, (msg) => {
@@ -1843,12 +1851,11 @@
   function setupEventListeners() {
       // Player state changes
       extensionCleanup.addListener(Spicetify.Player, "onplaypause", () => {
-          if (CONFIG.AUTO_REFRESH_ON_SONG_CHANGE) {
-              analyzeCurrentTrack();
-          }
+          // Play/pause does not change the track — no re-analysis needed
       });
   
       extensionCleanup.addListener(Spicetify.Player, "ontrackchange", () => {
+          lastAttemptedTrackId = null; // reset so new track is analyzed fresh
           if (CONFIG.AUTO_REFRESH_ON_SONG_CHANGE) {
               analyzeCurrentTrack();
           }
