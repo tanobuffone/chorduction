@@ -724,7 +724,7 @@
               const data = await Spicetify.CosmosAsync.get(url);
 
               // CosmosAsync returns error objects instead of throwing on 4xx
-              const httpStatus = data?.status || data?.error?.status;
+              const httpStatus = data?.code || data?.status || data?.error?.status;
               if (httpStatus === 429) {
                   throw { status: 429 };
               }
@@ -1855,7 +1855,6 @@
       });
   
       extensionCleanup.addListener(Spicetify.Player, "ontrackchange", () => {
-          lastAttemptedTrackId = null; // reset so new track is analyzed fresh
           if (CONFIG.AUTO_REFRESH_ON_SONG_CHANGE) {
               analyzeCurrentTrack();
           }
