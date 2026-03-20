@@ -731,8 +731,8 @@
               log.warn('Analysis response missing segments/beats — skipping');
               return null;
           } catch (e) {
-              const errStr = String(e?.message || e);
-              const is429 = errStr.includes('429') || e?.status === 429;
+              const errStr = String(e?.message || e?.error || e);
+              const is429 = e?.status === 429 || e?.error?.status === 429 || errStr.includes('429');
 
               if (is429 && attempt === 0) {
                   log.warn('Rate limited by Spotify (429) — retrying in 30s');
@@ -1730,7 +1730,10 @@
   
           const trackId = spotifyIdFromUri(meta.uri);
           if (!trackId) {
-              throw new Error("Invalid track URI");
+              // Podcast, local file, ad — silently do nothing
+              if (display) display.innerHTML = "";
+              analysisInProgress = false;
+              return;
           }
   
           // Get audio analysis — passes onStatus so rate-limit countdown is visible
