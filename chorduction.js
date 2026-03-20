@@ -707,58 +707,56 @@
   // =============================
   // Audio Analysis
   // =============================
-  async function getAudioAnalysis(trackId) {
+  async function getAudioAnalysis(trackId, onStatus) {
       if (!trackId) throw new Error("No trackId provided");
-      
+
       const cached = analysisCache.get(trackId);
       if (cached) {
           log.debug(`Analysis cache hit: ${trackId}`);
           return cached;
       }
-  
-      // Try Spotify Web API first (requires authentication)
-      const endpoints = [
-          { name: "Spotify Web API", url: `https://api.spotify.com/v1/audio-analysis/${trackId}`, requiresAuth: true },
-      ];
-  
-      for (const endpoint of endpoints) {
+
+      const url = `https://api.spotify.com/v1/audio-analysis/${trackId}`;
+
+      for (let attempt = 0; attempt < 2; attempt++) {
           try {
-              log.info(`Fetching audio analysis from ${endpoint.name}...`);
-              const response = await timedFetch(endpoint.url, {
-                  headers: {
-                      'Authorization': `Bearer ${Spicetify?.Platform?.AccessToken || ''}`,
-                      'Content-Type': 'application/json'
-                  }
-              });
-              
-              if (response.status === 429) {
-                  log.warn("API rate limited - will use cached data or manual entry");
-                  continue; // Skip to next endpoint or fallback
-              }
-              
-              if (!response.ok) {
-                  log.warn(`${endpoint.name} returned status: ${response.status}`);
-                  continue;
-              }
-              
-              const data = await response.json();
+              log.info(`Fetching audio analysis via CosmosAsync (attempt ${attempt + 1})...`);
+              const data = await Spicetify.CosmosAsync.get(url);
+
               if (data?.segments?.length && (data.beats?.length || data.tatums?.length)) {
                   analysisCache.set(trackId, data);
-                  log.debug(`Analysis fetched via ${endpoint.name}`);
+                  log.debug('Analysis fetched via CosmosAsync');
                   return data;
               }
+              log.warn('Analysis response missing segments/beats — skipping');
+              return null;
           } catch (e) {
-              // Handle CORS errors gracefully
-              if (e.message.includes('Failed to fetch') || e.message.includes('CORS')) {
-                  log.warn(`${endpoint.name} blocked by CORS - this is expected in Spotify web player`);
-              } else {
-                  log.warn(`${endpoint.name} failed:`, e.message);
+              const errStr = String(e?.message || e);
+              const is429 = errStr.includes('429') || e?.status === 429;
+
+              if (is429 && attempt === 0) {
+                  log.warn('Rate limited by Spotify (429) — retrying in 30s');
+                  // Show countdown so the user knows what is happening
+                  for (let s = 30; s > 0; s--) {
+                      // Abort if the track changed while we were waiting
+                      const nowId = spotifyIdFromUri(getCurrentTrackMeta?.()?.uri);
+                      if (nowId && nowId !== trackId) {
+                          log.info('Track changed during rate-limit wait — aborting');
+                          return null;
+                      }
+                      if (onStatus) {
+                          onStatus(`⏳ Spotify rate limit — retrying in ${s}s…`);
+                      }
+                      await new Promise(r => setTimeout(r, 1000));
+                  }
+                  continue; // retry once
               }
+
+              log.warn(`Audio analysis failed: ${errStr}`);
+              return null;
           }
       }
-      
-      // Return null if all endpoints fail - we'll handle this gracefully
-      log.info("Audio analysis unavailable - extension will show manual chord entry option");
+
       return null;
   }
   
@@ -1735,8 +1733,10 @@
               throw new Error("Invalid track URI");
           }
   
-          // Get audio analysis (may return null if API unavailable)
-          const analysis = await getAudioAnalysis(trackId);
+          // Get audio analysis — passes onStatus so rate-limit countdown is visible
+          const analysis = await getAudioAnalysis(trackId, (msg) => {
+              if (display) display.innerHTML = `<div style="color: #888; text-align: center; padding: 20px;">${msg}</div>`;
+          });
           
           if (!analysis) {
               // Audio analysis unavailable - show user-friendly message with manual entry option
@@ -1747,7 +1747,7 @@
                           <div style="font-size: 48px; margin-bottom: 16px;">🎵</div>
                           <div style="font-size: 16px; margin-bottom: 8px;">Audio Analysis Unavailable</div>
                           <div style="font-size: 13px; color: #888; margin-bottom: 20px;">
-                              Spotify's audio analysis API is rate-limited or blocked.<nbr>
+                              Spotify's audio analysis API is rate-limited or blocked.<br>
                               You can manually enter chords below.
                           </div>
                           <button id="manual-chord-entry" style="
