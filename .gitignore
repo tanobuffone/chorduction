@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Test coverage
+coverage/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+
+# Deprecated (keep folder but ignore contents)
+deprecated/*.js
+deprecated/*.md
+
+# Temporary files
+*.tmp
+*.temp

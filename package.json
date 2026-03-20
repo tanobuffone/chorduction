@@ -1,0 +1,28 @@
+{
+  "name": "chorduction",
+  "version": "7.0.0",
+  "description": "Spicetify extension for real-time chord detection, lyrics synchronization, and music analysis",
+  "main": "build/chorduction.js",
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "build:watch": "node build.js --watch",
+    "dev": "node build.js --watch",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/ --ext .js",
+    "lint:fix": "eslint src/ --ext .js --fix",
+    "release": "npm test && npm run build && npm version patch"
+  },
+  "keywords": ["spicetify", "spotify", "chord", "music", "lyrics", "guitar"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "^0.20.0",
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "typescript": "^5.4.0"
+  },
+}
