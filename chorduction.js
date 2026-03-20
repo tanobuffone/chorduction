@@ -723,6 +723,12 @@
               log.info(`Fetching audio analysis via CosmosAsync (attempt ${attempt + 1})...`);
               const data = await Spicetify.CosmosAsync.get(url);
 
+              // CosmosAsync returns error objects instead of throwing on 4xx
+              const httpStatus = data?.status || data?.error?.status;
+              if (httpStatus === 429) {
+                  throw { status: 429 };
+              }
+
               if (data?.segments?.length && (data.beats?.length || data.tatums?.length)) {
                   analysisCache.set(trackId, data);
                   log.debug('Analysis fetched via CosmosAsync');
