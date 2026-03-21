@@ -1557,7 +1557,15 @@
       const chordDisplay = document.createElement("div");
       chordDisplay.id = "chord-display";
       chordDisplay.style.cssText = "min-height: 100px; padding: 16px; background: #1a1a1a; border-radius: 8px; margin-bottom: 16px;";
-      chordDisplay.innerHTML = `<div style="color: #888;">${getT('analyzing')}</div>`;
+      if (currentAnalysis?.chords?.length) {
+          // Panel reopened — show existing analysis immediately
+          setTimeout(() => updateChordDisplay(currentAnalysis.chords, currentAnalysis.lyrics, currentAnalysis.key), 0);
+      } else {
+          chordDisplay.innerHTML = `<div style="color: #888;">${getT('analyzing')}</div>`;
+          // Reset debounce so panel open always triggers fresh analysis
+          lastAnalysisStartMs = 0;
+          setTimeout(analyzeCurrentTrack, 100);
+      }
       container.appendChild(chordDisplay);
   
       // Settings toggle
@@ -1735,9 +1743,9 @@
       }
 
       analysisInProgress = true;
-      const display = document.getElementById("chord-display") || window._chorductionChordDisplay;
-      if (display) {
-          display.innerHTML = `<div style="color: #888;">${getT('analyzing')}</div>`;
+      const getDisplay = () => document.getElementById("chord-display") || window._chorductionChordDisplay;
+      if (getDisplay()) {
+          getDisplay().innerHTML = `<div style="color: #888;">${getT('analyzing')}</div>`;
       }
   
       try {
@@ -1747,7 +1755,7 @@
           const trackId = spotifyIdFromUri(meta.uri);
           if (!trackId) {
               // Podcast, local file, ad — silently do nothing
-              if (display) display.innerHTML = "";
+              if (getDisplay()) getDisplay().innerHTML = "";
               analysisInProgress = false;
               return;
           }
@@ -1755,14 +1763,14 @@
   
           // Get audio analysis — passes onStatus so rate-limit countdown is visible
           const analysis = await getAudioAnalysis(trackId, (msg) => {
-              if (display) display.innerHTML = `<div style="color: #888; text-align: center; padding: 20px;">${msg}</div>`;
+              if (getDisplay()) getDisplay().innerHTML = `<div style="color: #888; text-align: center; padding: 20px;">${msg}</div>`;
           });
           
           if (!analysis) {
               // Audio analysis unavailable - show user-friendly message with manual entry option
               log.info("Audio analysis unavailable - showing manual entry option");
-              if (display) {
-                  display.innerHTML = `
+              if (getDisplay()) {
+                  getDisplay().innerHTML = `
                       <div style="text-align: center; padding: 20px; color: #ccc;">
                           <div style="font-size: 48px; margin-bottom: 16px;">🎵</div>
                           <div style="font-size: 16px; margin-bottom: 8px;">Audio Analysis Unavailable</div>
@@ -1781,7 +1789,7 @@
                           ">Add Chords Manually</button>
                       </div>
                   `;
-                  display.querySelector('#manual-chord-entry')?.addEventListener('click', () => {
+                  getDisplay().querySelector('#manual-chord-entry')?.addEventListener('click', () => {
                       manualChordEntry(meta);
                   });
               }
@@ -1807,8 +1815,8 @@
   
       } catch (e) {
           log.error("Analysis failed:", e);
-          if (display) {
-              display.innerHTML = `
+          if (getDisplay()) {
+              getDisplay().innerHTML = `
                   <div style="text-align: center; padding: 20px; color: #ff6b6b;">
                       <div style="font-size: 14px; margin-bottom: 8px;">Analysis Unavailable</div>
                       <div style="font-size: 12px; color: #888;">${e.message}</div>
