@@ -324,6 +324,54 @@
   }
   
   const log = new Logger("Chorduction", CONFIG.DEBUG_LEVEL, CONFIG.DEBUG_CONSOLE_ENABLED);
+
+  // =============================
+  // Styles
+  // =============================
+  function ensureStyles() {
+      if (document.getElementById('chorduction-style')) return;
+      const style = document.createElement('style');
+      style.id = 'chorduction-style';
+      style.textContent = `
+          .chorduction-panel { overflow: auto; padding: 12px; box-sizing: border-box; }
+          .chorduction-timeline { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; margin-top: 8px; }
+          .chorduction-line { margin: 16px 0; position: relative; }
+          .chorduction-line-chords-container { position: relative; height: 30px; margin-bottom: 4px; overflow: visible; }
+          .chorduction-line-lyric { color: #cfcfcf; font-size: 14px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
+          .chorduction-chip {
+              display: inline-flex; align-items: center; gap: 3px;
+              padding: 3px 7px; border-radius: 5px;
+              border: 1px solid #3a3a3a; background: #1a1a1a;
+              color: #e6e6e6; cursor: pointer; font-size: 12px; font-weight: 700;
+              position: absolute; top: 0; white-space: nowrap;
+              transition: background 0.12s, transform 0.1s;
+              user-select: none;
+          }
+          .chorduction-chip:hover { background: #2d2d2d; transform: translateY(-1px); }
+          .chorduction-chip.now { border-color: #1db954 !important; background: #0d2818 !important; color: #1db954; }
+          .chorduction-fretboard-tip {
+              display: none; position: absolute; top: 36px; left: 50%;
+              transform: translateX(-50%); background: #181818;
+              border: 1px solid #444; border-radius: 6px; padding: 4px;
+              z-index: 1000; box-shadow: 0 4px 14px rgba(0,0,0,0.7);
+              pointer-events: none;
+          }
+          .chorduction-chip:hover .chorduction-fretboard-tip { display: block; }
+          .chorduction-autoscroll-banner {
+              display: none; margin-top: 4px; color: #aaa; font-size: 12px; text-align: center; padding: 4px;
+          }
+          .chorduction-autoscroll-banner.active { display: block; }
+          @keyframes chorduction-spin { to { transform: rotate(360deg); } }
+          .chorduction-spinner {
+              width: 18px; height: 18px; border: 2px solid #444;
+              border-top-color: #1db954; border-radius: 50%;
+              animation: chorduction-spin 1s linear infinite;
+              display: inline-block; vertical-align: middle; margin-right: 8px;
+          }
+      `;
+      document.head.appendChild(style);
+      extensionCleanup.addElement(style);
+  }
   
   // =============================
   // Advanced Cache System
@@ -1281,145 +1329,70 @@
       const container = document.createElement("div");
       container.id = "chorduction-player-controls";
       container.style.cssText = `
-          display: flex;
-          gap: 8px;
-          padding: 8px 12px;
-          background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
-          border-radius: 24px;
-          margin-bottom: 12px;
-          align-items: center;
-          justify-content: center;
+          display: flex; gap: 6px; padding: 6px 12px;
+          background: #1a1a1a; border-radius: 20px;
+          margin-bottom: 10px; align-items: center; justify-content: center;
       `;
-      
-      // Previous track
-      const prevBtn = document.createElement("button");
-      prevBtn.innerHTML = "⏮";
-      prevBtn.title = "Previous Track";
-      prevBtn.style.cssText = `
-          background: transparent;
-          border: none;
-          color: #b3b3b3;
-          font-size: 16px;
-          cursor: pointer;
-          padding: 6px 10px;
-          border-radius: 50%;
-          transition: all 0.2s;
-      `;
-      prevBtn.onmouseover = () => { prevBtn.style.color = "#fff"; prevBtn.style.background = "#333"; };
-      prevBtn.onmouseout = () => { prevBtn.style.color = "#b3b3b3"; prevBtn.style.background = "transparent"; };
-      prevBtn.onclick = () => Spicetify.Player?.prev?.();
-      
-      // Play/Pause
-      const playPauseBtn = document.createElement("button");
-      playPauseBtn.id = "chorduction-playpause-btn";
-      playPauseBtn.innerHTML = "▶";
-      playPauseBtn.title = "Play/Pause";
-      playPauseBtn.style.cssText = `
-          background: #1db954;
-          border: none;
-          color: #fff;
-          font-size: 18px;
-          cursor: pointer;
-          padding: 8px 14px;
-          border-radius: 50%;
-          transition: all 0.2s;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-      `;
-      playPauseBtn.onmouseover = () => { playPauseBtn.style.transform = "scale(1.1)"; };
-      playPauseBtn.onmouseout = () => { playPauseBtn.style.transform = "scale(1)"; };
-      playPauseBtn.onclick = () => Spicetify.Player?.togglePlay?.();
-      
-      // Update play/pause icon based on player state
-      const updatePlayPauseIcon = () => {
-          const isPlaying = Spicetify?.Player?.isPlaying?.() ?? false;
-          playPauseBtn.innerHTML = isPlaying ? "⏸" : "▶";
+
+      const mkBtn = (html, title, action) => {
+          const btn = document.createElement("button");
+          btn.innerHTML = html;
+          btn.title = title;
+          btn.dataset.action = action;
+          btn.style.cssText = "background:transparent; border:none; color:#b3b3b3; font-size:15px; cursor:pointer; padding:5px 9px; border-radius:50%; transition:all 0.15s;";
+          btn.onmouseover = () => { btn.style.color = "#fff"; btn.style.background = "#333"; };
+          btn.onmouseout = () => { btn.style.color = "#b3b3b3"; btn.style.background = "transparent"; };
+          return btn;
       };
-      
-      // Listen for player state changes
+
+      const prevBtn = mkBtn("⏮", "Previous Chord", "prev-chord");
+      const playPauseBtn = mkBtn("▶", "Play/Pause", "playpause");
+      const nextBtn = mkBtn("⏭", "Next Chord", "next-chord");
+
+      const autoscrollBadge = document.createElement("span");
+      autoscrollBadge.setAttribute("data-role", "autoscroll-status");
+      autoscrollBadge.style.cssText = "font-size:11px; color:#888; padding:2px 6px; border:1px solid #333; border-radius:999px; cursor:pointer; white-space:nowrap;";
+      autoscrollBadge.title = "Click to toggle autoscroll";
+      autoscrollBadge.textContent = "Autoscroll: On";
+      autoscrollBadge.onclick = () => setAutoscroll(!chordPlayState.enabled);
+
+      const trackInfo = document.createElement("div");
+      trackInfo.id = "chorduction-track-info";
+      trackInfo.style.cssText = "flex:1; text-align:center; font-size:11px; color:#888; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:0 6px; min-width:0;";
+      const meta = getCurrentTrackMeta();
+      trackInfo.textContent = meta.title ? `${meta.title} — ${meta.artist}` : "No track playing";
+
+      const updatePlayPauseIcon = () => {
+          const playing = Spicetify?.Player?.isPlaying?.() ?? false;
+          playPauseBtn.innerHTML = playing ? "⏸" : "▶";
+      };
       if (Spicetify?.Player) {
           Spicetify.Player.addEventListener("onplaypause", updatePlayPauseIcon);
           updatePlayPauseIcon();
       }
-      
-      // Next track
-      const nextBtn = document.createElement("button");
-      nextBtn.innerHTML = "⏭";
-      nextBtn.title = "Next Track";
-      nextBtn.style.cssText = `
-          background: transparent;
-          border: none;
-          color: #b3b3b3;
-          font-size: 16px;
-          cursor: pointer;
-          padding: 6px 10px;
-          border-radius: 50%;
-          transition: all 0.2s;
-      `;
-      nextBtn.onmouseover = () => { nextBtn.style.color = "#fff"; nextBtn.style.background = "#333"; };
-      nextBtn.onmouseout = () => { nextBtn.style.color = "#b3b3b3"; nextBtn.style.background = "transparent"; };
-      nextBtn.onclick = () => Spicetify.Player?.next?.();
-      
-      // Stop
-      const stopBtn = document.createElement("button");
-      stopBtn.innerHTML = "⏹";
-      stopBtn.title = "Stop";
-      stopBtn.style.cssText = `
-          background: transparent;
-          border: none;
-          color: #b3b3b3;
-          font-size: 14px;
-          cursor: pointer;
-          padding: 6px 10px;
-          border-radius: 50%;
-          transition: all 0.2s;
-      `;
-      stopBtn.onmouseover = () => { stopBtn.style.color = "#fff"; stopBtn.style.background = "#333"; };
-      stopBtn.onmouseout = () => { stopBtn.style.color = "#b3b3b3"; stopBtn.style.background = "transparent"; };
-      stopBtn.onclick = () => {
-          Spicetify.Player?.pause?.();
-          Spicetify.Player?.seek?.(0);
+
+      // Chord navigation — prev/next seek within current track
+      prevBtn.onclick = () => {
+          const ms = Spicetify.Player.getProgress?.() ?? 0;
+          const idx = binarySearchChords(ms);
+          const isWellPast = idx >= 0 && (ms - (chordPlayState.chords[idx]?.startMs ?? 0)) > 800;
+          seekToChord(isWellPast ? idx : Math.max(0, idx - 1));
       };
-      
-      // Current track info
-      const trackInfo = document.createElement("div");
-      trackInfo.id = "chorduction-track-info";
-      trackInfo.style.cssText = `
-          flex: 1;
-          text-align: center;
-          font-size: 11px;
-          color: #888;
-          min-width: 0;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          padding: 0 8px;
-      `;
-      trackInfo.textContent = "No track playing";
-      
-      const updateTrackInfo = () => {
-          const meta = getCurrentTrackMeta();
-          trackInfo.textContent = meta.title && meta.artist 
-              ? `${meta.title} - ${meta.artist}` 
-              : "No track playing";
+      nextBtn.onclick = () => {
+          const ms = Spicetify.Player.getProgress?.() ?? 0;
+          const idx = binarySearchChords(ms);
+          seekToChord(idx + 1);
       };
-      
-      if (Spicetify?.Player) {
-          Spicetify.Player.addEventListener("ontrackchange", updateTrackInfo);
-          Spicetify.Player.addEventListener("onplaypause", updateTrackInfo);
-          updateTrackInfo();
-      }
-      
+      playPauseBtn.onclick = () => Spicetify.Player?.togglePlay?.();
+
       container.appendChild(prevBtn);
       container.appendChild(playPauseBtn);
       container.appendChild(nextBtn);
-      container.appendChild(stopBtn);
+      container.appendChild(autoscrollBadge);
       container.appendChild(trackInfo);
-      
+
       return container;
   }
-  
   // =============================
   // UI Components
   // =============================
@@ -1435,95 +1408,110 @@
   }
   
   function showMainPanel() {
-      // Check if modal exists - use correct API format
+      // Clean up previous panel listeners and playhead tracking
+      panelCleanup.cleanup();
+      if (panelProgressHandler) {
+          try { Spicetify.Player.removeEventListener('onprogress', panelProgressHandler); } catch {}
+          panelProgressHandler = null;
+      }
+      chordPlayState.chords = [];
+      chordPlayState.chips = null;
+      chordPlayState.activeIdx = -1;
+
+      ensureStyles();
+
+      const openedTrackUri = getCurrentTrackMeta()?.uri;
+
       if (Spicetify.PopupModal?.display) {
           Spicetify.PopupModal.display({
               title: "🎸 Chorduction",
               content: getMainPanelContent(),
               isLarge: true
           });
-          return;
+      } else {
+          // Fallback custom modal
+          if (document.getElementById("chorduction-modal")) {
+              document.getElementById("chorduction-modal").remove();
+          }
+          const modal = document.createElement("div");
+          modal.id = "chorduction-modal";
+          Object.assign(modal.style, {
+              position: "fixed", top: "0", left: "0", right: "0", bottom: "0",
+              background: "rgba(0,0,0,0.8)", zIndex: "99999",
+              display: "flex", alignItems: "center", justifyContent: "center",
+          });
+          const content = getMainPanelContent();
+          Object.assign(content.style, {
+              background: "#282828", borderRadius: "8px",
+              maxWidth: "800px", maxHeight: "80vh",
+              overflow: "auto", padding: "20px", color: "#fff",
+          });
+          modal.appendChild(content);
+          document.body.appendChild(modal);
+          panelCleanup.addElement(modal);
+          modal.addEventListener("click", (e) => { if (e.target === modal) modal.remove(); });
       }
-  
-      // Fallback to custom modal
-      if (document.getElementById("chorduction-modal")) {
-          document.getElementById("chorduction-modal").remove();
-      }
-  
-      const modal = document.createElement("div");
-      modal.id = "chorduction-modal";
-      Object.assign(modal.style, {
-          position: "fixed",
-          top: "0",
-          left: "0",
-          right: "0",
-          bottom: "0",
-          background: "rgba(0,0,0,0.8)",
-          zIndex: "99999",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-      });
-  
-      const content = getMainPanelContent();
-      Object.assign(content.style, {
-          background: "#282828",
-          borderRadius: "8px",
-          maxWidth: "800px",
-          maxHeight: "80vh",
-          overflow: "auto",
-          padding: "20px",
-          color: "#fff",
-      });
-  
-      modal.appendChild(content);
-      document.body.appendChild(modal);
-      panelCleanup.addElement(modal);
-  
-      modal.addEventListener("click", (e) => {
-          if (e.target === modal) modal.remove();
+
+      // When song changes while panel is open — re-render the panel for the new track
+      panelCleanup.addListener(Spicetify.Player, "ontrackchange", () => {
+          const isOpen = document.querySelector(".main-popupModal-container, #chorduction-modal");
+          if (!isOpen) return;
+          const newUri = getCurrentTrackMeta()?.uri;
+          if (newUri === openedTrackUri) return;
+          log.info("Song changed while panel open — refreshing panel");
+          currentAnalysis = null;
+          showMainPanel();
       });
   }
-  
+
   function getMainPanelContent() {
       const container = document.createElement("div");
+      container.className = "chorduction-panel";
       container.id = "chorduction-panel";
 
-      // Header with version
+      // Header
       const header = document.createElement("div");
-      header.innerHTML = `
-          <h2 style="margin: 0 0 12px 0; display: flex; align-items: center; gap: 12px;">
-              ${getT('title')}
-              <span style="font-size: 12px; color: #888;">v6.1.0</span>
-          </h2>
-      `;
+      header.style.cssText = "margin-bottom: 10px; text-align: center;";
+      header.innerHTML = `<h2 style="margin:0 0 4px 0; display:flex; align-items:center; justify-content:center; gap:10px;">
+          ${getT('title')} <span style="font-size:12px; color:#888;">v6.1.0</span>
+      </h2>`;
       container.appendChild(header);
 
-      // Player Controls - Integrated at top of panel
-      const playerControls = createPlayerControls();
-      container.appendChild(playerControls);
+      // Player Controls (chord navigation)
+      container.appendChild(createPlayerControls());
 
-      // Transpose and Notation row - compact
+      // Autoscroll paused banner
+      const autoscrollBanner = document.createElement("div");
+      autoscrollBanner.setAttribute("data-role", "autoscroll-banner");
+      autoscrollBanner.className = "chorduction-autoscroll-banner";
+      autoscrollBanner.innerHTML = 'Autoscroll paused. ';
+      const resumeBtn = document.createElement("button");
+      resumeBtn.textContent = "Resume";
+      resumeBtn.style.cssText = "margin-left:6px; padding:2px 8px; border-radius:4px; border:1px solid #555; background:#333; color:#ddd; cursor:pointer; font-size:11px;";
+      resumeBtn.onclick = () => setAutoscroll(true);
+      autoscrollBanner.appendChild(resumeBtn);
+      container.appendChild(autoscrollBanner);
+
+      // Transpose and Notation controls
       const controlsRow = document.createElement("div");
-      controlsRow.style.cssText = "display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; align-items: center;";
+      controlsRow.style.cssText = "display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; align-items:center;";
       controlsRow.innerHTML = `
-          <div style="display: flex; gap: 4px; align-items: center;">
-              <button id="transpose-down" style="padding: 4px 8px; border-radius: 4px; border: none; background: #444; color: #fff; cursor: pointer; font-size: 12px;">−</button>
-              <span id="transpose-value" style="min-width: 40px; text-align: center; font-size: 12px;">${Transposer.getDisplay(CONFIG.TRANSPOSE_SEMITONES) || '0'}</span>
-              <button id="transpose-up" style="padding: 4px 8px; border-radius: 4px; border: none; background: #444; color: #fff; cursor: pointer; font-size: 12px;">+</button>
+          <div style="display:flex; gap:4px; align-items:center;">
+              <button id="transpose-down" style="padding:3px 7px; border-radius:4px; border:none; background:#444; color:#fff; cursor:pointer; font-size:12px;">−</button>
+              <span id="transpose-value" style="min-width:36px; text-align:center; font-size:12px;">${Transposer.getDisplay(CONFIG.TRANSPOSE_SEMITONES) || '0'}</span>
+              <button id="transpose-up" style="padding:3px 7px; border-radius:4px; border:none; background:#444; color:#fff; cursor:pointer; font-size:12px;">+</button>
           </div>
-          <select id="notation-select" style="padding: 4px 8px; border-radius: 4px; border: none; background: #333; color: #fff; font-size: 12px;">
+          <select id="notation-select" style="padding:3px 8px; border-radius:4px; border:none; background:#333; color:#fff; font-size:12px;">
               ${ChordNotation.getAvailable().map(n => `<option value="${n}" ${CONFIG.CHORD_NOTATION === n ? 'selected' : ''}>${ChordNotation.getDisplayName(n)}</option>`).join('')}
           </select>
-          <select id="chord-level-select" style="padding: 4px 8px; border-radius: 4px; border: none; background: #333; color: #fff; font-size: 12px;">
+          <select id="chord-level-select" style="padding:3px 8px; border-radius:4px; border:none; background:#333; color:#fff; font-size:12px;">
               <option value="1" ${CONFIG.CHORD_SIMPLIFICATION === 1 ? 'selected' : ''}>${getT('basicsOnly')}</option>
               <option value="2" ${CONFIG.CHORD_SIMPLIFICATION === 2 ? 'selected' : ''}>${getT('intermediate')}</option>
               <option value="3" ${CONFIG.CHORD_SIMPLIFICATION === 3 ? 'selected' : ''}>${getT('advanced')}</option>
           </select>
       `;
       container.appendChild(controlsRow);
-  
-      // Transpose event listeners - use controlsRow
+
       controlsRow.querySelector('#transpose-down')?.addEventListener('click', () => {
           Transposer.setTranspose(CONFIG.TRANSPOSE_SEMITONES - 1);
           controlsRow.querySelector('#transpose-value').textContent = Transposer.getDisplay(CONFIG.TRANSPOSE_SEMITONES) || '0';
@@ -1540,174 +1528,266 @@
           Settings.save(CONFIG);
           log.info(`Chord level set to ${CONFIG.CHORD_SIMPLIFICATION}`);
       });
-  
+
       // Chord display area
       const chordDisplay = document.createElement("div");
       chordDisplay.id = "chord-display";
-      chordDisplay.style.cssText = "min-height: 100px; padding: 16px; background: #1a1a1a; border-radius: 8px; margin-bottom: 16px;";
+      chordDisplay.style.cssText = "min-height:120px; padding:12px; background:#111; border-radius:8px; margin-bottom:12px;";
+
       if (currentAnalysis?.chords?.length) {
-          // Panel reopened — show existing analysis immediately
           setTimeout(() => updateChordDisplay(currentAnalysis.chords, currentAnalysis.lyrics, currentAnalysis.key), 0);
       } else {
-          chordDisplay.innerHTML = `<div style="color: #888;">${getT('analyzing')}</div>`;
-          // Reset debounce so panel open always triggers fresh analysis
+          chordDisplay.innerHTML = `<div style="color:#888; display:flex; align-items:center; gap:8px;"><span class="chorduction-spinner"></span>${getT('analyzing')}</div>`;
           lastAnalysisStartMs = 0;
           setTimeout(analyzeCurrentTrack, 100);
       }
       container.appendChild(chordDisplay);
-  
-      // Settings toggle
+
+      // Settings (collapsed)
       const settingsToggle = document.createElement("details");
+      settingsToggle.style.cssText = "margin-bottom:10px;";
       settingsToggle.innerHTML = `
-          <summary style="cursor: pointer; padding: 8px; background: #333; border-radius: 4px;">Settings</summary>
-          <div style="padding: 16px;">
-              <label style="display: block; margin-bottom: 12px;">
-                  <input type="checkbox" id="show-lyrics" ${CONFIG.SHOW_LYRICS ? 'checked' : ''}> ${getT('showLyrics')}
+          <summary style="cursor:pointer; padding:6px 10px; background:#2a2a2a; border-radius:4px; font-size:12px; color:#aaa;">Settings</summary>
+          <div style="padding:12px; background:#1e1e1e; border-radius:0 0 4px 4px;">
+              <label style="display:block; margin-bottom:8px; font-size:12px;">
+                  <input type="checkbox" id="show-lyrics" ${CONFIG.SHOW_LYRICS ? 'checked' : ''}> Show lyrics
               </label>
-              <label style="display: block; margin-bottom: 12px;">
-                  <input type="checkbox" id="show-fretboard" ${CONFIG.SHOW_FRETBOARD_DIAGRAMS ? 'checked' : ''}> ${getT('fretboard')}
-              </label>
-              <label style="display: block; margin-bottom: 12px;">
-                  <input type="checkbox" id="autoscroll" ${CONFIG.AUTO_REFRESH_ON_SONG_CHANGE ? 'checked' : ''}> Autoscroll on song change
+              <label style="display:block; margin-bottom:8px; font-size:12px;">
+                  <input type="checkbox" id="show-fretboard" ${CONFIG.SHOW_FRETBOARD_DIAGRAMS ? 'checked' : ''}> Fretboard on hover
               </label>
           </div>
       `;
       container.appendChild(settingsToggle);
-  
-      // Handle settings changes
-      settingsToggle.querySelector('#show-lyrics')?.addEventListener('change', (e) => {
-          CONFIG.SHOW_LYRICS = e.target.checked;
-          Settings.save(CONFIG);
-      });
-      settingsToggle.querySelector('#show-fretboard')?.addEventListener('change', (e) => {
-          CONFIG.SHOW_FRETBOARD_DIAGRAMS = e.target.checked;
-          Settings.save(CONFIG);
-      });
-      settingsToggle.querySelector('#autoscroll')?.addEventListener('change', (e) => {
-          CONFIG.AUTO_REFRESH_ON_SONG_CHANGE = e.target.checked;
-          Settings.save(CONFIG);
-      });
-  
-      // Store reference for updates
-      
-      // Export buttons - compact row
+      settingsToggle.querySelector('#show-lyrics')?.addEventListener('change', (e) => { CONFIG.SHOW_LYRICS = e.target.checked; Settings.save(CONFIG); });
+      settingsToggle.querySelector('#show-fretboard')?.addEventListener('change', (e) => { CONFIG.SHOW_FRETBOARD_DIAGRAMS = e.target.checked; Settings.save(CONFIG); });
+
+      // Export row
       const exportSection = document.createElement("div");
-      exportSection.style.cssText = "margin-top: 12px; padding: 8px; background: #1a1a1a; border-radius: 8px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap;";
+      exportSection.style.cssText = "display:flex; gap:6px; align-items:center; flex-wrap:wrap;";
       exportSection.innerHTML = `
-          <span style="color: #888; font-size: 11px; margin-right: 4px;">Save:</span>
-          <button id="export-txt" title="Export as text" style="padding: 4px 10px; border-radius: 4px; border: none; background: #333; color: #ccc; cursor: pointer; font-size: 11px;">TXT</button>
-          <button id="export-json" title="Export as JSON" style="padding: 4px 10px; border-radius: 4px; border: none; background: #333; color: #ccc; cursor: pointer; font-size: 11px;">JSON</button>
-          <button id="export-chordpro" title="Export as ChordPro" style="padding: 4px 10px; border-radius: 4px; border: none; background: #333; color: #ccc; cursor: pointer; font-size: 11px;">CPro</button>
+          <span style="color:#666; font-size:11px;">Export:</span>
+          <button id="export-txt" style="padding:3px 10px; border-radius:4px; border:none; background:#333; color:#ccc; cursor:pointer; font-size:11px;">TXT</button>
+          <button id="export-json" style="padding:3px 10px; border-radius:4px; border:none; background:#333; color:#ccc; cursor:pointer; font-size:11px;">JSON</button>
+          <button id="export-chordpro" style="padding:3px 10px; border-radius:4px; border:none; background:#333; color:#ccc; cursor:pointer; font-size:11px;">ChordPro</button>
       `;
       container.appendChild(exportSection);
-      
-      // Export event listeners
-      exportSection.querySelector('#export-txt')?.addEventListener('click', () => {
-          if (currentAnalysis) {
-              FileExporter.export({...currentAnalysis, meta: getCurrentTrackMeta()}, 'txt');
-              Spicetify.showNotification?.('Exported!');
-          }
-      });
-      exportSection.querySelector('#export-json')?.addEventListener('click', () => {
-          if (currentAnalysis) {
-              FileExporter.export({...currentAnalysis, meta: getCurrentTrackMeta()}, 'json');
-              Spicetify.showNotification?.('Exported!');
-          }
-      });
-      exportSection.querySelector('#export-chordpro')?.addEventListener('click', () => {
-          if (currentAnalysis) {
-              FileExporter.export({...currentAnalysis, meta: getCurrentTrackMeta()}, 'chordpro');
-              Spicetify.showNotification?.('Exported!');
-          }
-      });
+      exportSection.querySelector('#export-txt')?.addEventListener('click', () => { if (currentAnalysis) FileExporter.export({...currentAnalysis, meta: getCurrentTrackMeta()}, 'txt'); });
+      exportSection.querySelector('#export-json')?.addEventListener('click', () => { if (currentAnalysis) FileExporter.export({...currentAnalysis, meta: getCurrentTrackMeta()}, 'json'); });
+      exportSection.querySelector('#export-chordpro')?.addEventListener('click', () => { if (currentAnalysis) FileExporter.export({...currentAnalysis, meta: getCurrentTrackMeta()}, 'chordpro'); });
+
       window._chorductionChordDisplay = chordDisplay;
       window._chorductionContainer = container;
-  
       return container;
   }
-  
   function updateChordDisplay(chords, lyrics, key) {
       const display = document.getElementById("chord-display") || window._chorductionChordDisplay;
-      if (!display) return;
-  
+      if (!display?.isConnected && !display?.parentNode) return;
+
       if (!chords?.length) {
-          display.innerHTML = `<div style="color: #888;">${getT('noData')}</div>`;
+          if (display) display.innerHTML = `<div style="color:#888;">${getT('noData')}</div>`;
           return;
       }
-  
-      const container = document.createElement("div");
-  
-      // Group by measure if enabled
-      const grouped = CONFIG.GROUP_CHORDS_BY_MEASURE;
-      let currentMeasure = null;
-  
-      for (const chord of chords) {
-          const measure = Math.floor(chord.startMs / (CONFIG.BEATS_PER_MEASURE * 500)); // Rough measure estimate
-          
-          if (grouped && measure !== currentMeasure) {
-              const measureHeader = document.createElement("div");
-              measureHeader.style.cssText = "border-bottom: 1px solid #444; padding: 8px 0; margin-top: 8px; color: #888; font-size: 12px;";
-              measureHeader.textContent = `Measure ${measure + 1}`;
-              container.appendChild(measureHeader);
-              currentMeasure = measure;
+
+      ensureStyles();
+      const timeline = document.createElement("div");
+      timeline.className = "chorduction-timeline";
+
+      const lyricsLines = lyrics?.length ? lyrics : [];
+      const lines = buildChordLines(chords, lyricsLines);
+
+      for (const line of lines) {
+          const lineEl = document.createElement("div");
+          lineEl.className = "chorduction-line";
+
+          // Chord chips row
+          const chipsRow = document.createElement("div");
+          chipsRow.className = "chorduction-line-chords-container";
+          const lineDur = line.endMs - line.startMs;
+
+          for (let ci = 0; ci < line.chords.length; ci++) {
+              const c = line.chords[ci];
+              const leftPct = lineDur > 0
+                  ? Math.min(((c.startMs - line.startMs) / lineDur) * 100, 94)
+                  : (ci / Math.max(line.chords.length, 1)) * 90;
+
+              const chip = document.createElement("div");
+              chip.className = "chorduction-chip";
+              chip.dataset.start = c.startMs;
+              chip.dataset.end = c.endMs;
+              chip.style.left = leftPct.toFixed(1) + "%";
+              const confPct = Math.round((c.confidence || 0) * 100);
+              chip.title = `${c.chord} · ${confPct}% · click to seek`;
+
+              const label = document.createElement("span");
+              label.className = "chip-chord";
+              label.textContent = c.chord === "N" ? "—" : c.chord;
+              chip.appendChild(label);
+
+              // Fretboard diagram — hover-only tooltip
+              if (CONFIG.SHOW_FRETBOARD_DIAGRAMS) {
+                  const diagram = generateFretboardDiagram(c.chord);
+                  if (diagram) {
+                      const tip = document.createElement("div");
+                      tip.className = "chorduction-fretboard-tip";
+                      tip.appendChild(diagram);
+                      chip.appendChild(tip);
+                  }
+              }
+
+              chipsRow.appendChild(chip);
           }
-  
-          const chordEl = document.createElement("div");
-          chordEl.style.cssText = "display: flex; align-items: center; gap: 12px; padding: 8px; background: #2a2a2a; border-radius: 4px; margin: 4px 0;";
-          
-          // Chord name
-          const chordName = document.createElement("span");
-          chordName.style.cssText = "font-size: 18px; font-weight: bold; min-width: 60px; color: #1db954;";
-          chordName.textContent = chord.chord;
-          chordEl.appendChild(chordName);
-  
-          // Confidence indicator
-          if (CONFIG.SHOW_CONFIDENCE_THRESHOLD) {
-              const confEl = document.createElement("span");
-              const confPercent = Math.round((chord.confidence || 0) * 100);
-              confEl.style.cssText = `font-size: 11px; padding: 2px 6px; border-radius: 3px; background: ${confPercent < 30 ? '#ff6b6b' : confPercent < 50 ? '#ffd93d' : '#6bcb77'}; color: #000;`;
-              confEl.textContent = `${confPercent}%`;
-              chordEl.appendChild(confEl);
+
+          lineEl.appendChild(chipsRow);
+
+          // Lyric text below chips
+          if (CONFIG.SHOW_LYRICS && line.text) {
+              const lyricEl = document.createElement("div");
+              lyricEl.className = "chorduction-line-lyric";
+              lyricEl.textContent = line.text;
+              lineEl.appendChild(lyricEl);
           }
-  
-          // Lyrics
-          if (CONFIG.SHOW_LYRICS && chord.lyric) {
-              const lyricEl = document.createElement("span");
-              lyricEl.style.cssText = "flex: 1; color: #ccc;";
-              lyricEl.textContent = chord.lyric;
-              chordEl.appendChild(lyricEl);
-          }
-  
-          // Fretboard diagram
-          if (CONFIG.SHOW_FRETBOARD_DIAGRAMS) {
-              const diagram = generateFretboardDiagram(chord.chord);
-              if (diagram) {
-                  chordEl.appendChild(diagram);
+
+          timeline.appendChild(lineEl);
+      }
+
+      // Key footer
+      if (key) {
+          const keyEl = document.createElement("div");
+          keyEl.style.cssText = "color:#666; font-size:11px; margin-top:10px; text-align:center;";
+          keyEl.textContent = `Key: ${key} · ${chords.length} chords`;
+          timeline.appendChild(keyEl);
+      }
+
+      if (display) {
+          display.innerHTML = "";
+          display.appendChild(timeline);
+      }
+
+      // Start autoscroll tracking after DOM is ready
+      startPlayheadTracking(chords);
+  }
+  // =============================
+  // Autoscroll & Playhead Tracking
+  // =============================
+  let chordPlayState = { chords: [], chips: null, activeIdx: -1, rafId: 0, enabled: true, programmatic: false };
+  let panelProgressHandler = null;
+
+  function binarySearchChords(ms) {
+      const c = chordPlayState.chords;
+      let lo = 0, hi = c.length - 1;
+      while (lo <= hi) {
+          const mid = (lo + hi) >> 1;
+          if (ms < c[mid].startMs) hi = mid - 1;
+          else if (ms >= c[mid].endMs) lo = mid + 1;
+          else return mid;
+      }
+      return -1;
+  }
+
+  function setAutoscroll(enabled) {
+      chordPlayState.enabled = enabled;
+      const badge = document.querySelector('[data-role="autoscroll-status"]');
+      const banner = document.querySelector('[data-role="autoscroll-banner"]');
+      if (badge) badge.textContent = `Autoscroll: ${enabled ? 'On' : 'Paused'}`;
+      if (banner) banner.classList.toggle('active', !enabled);
+  }
+
+  function updatePlayhead(ms) {
+      const state = chordPlayState;
+      if (!state.chords.length) return;
+      if (state.rafId) cancelAnimationFrame(state.rafId);
+      state.rafId = requestAnimationFrame(() => {
+          const idx = binarySearchChords(ms);
+          if (idx === state.activeIdx) return;
+          state.chips = state.chips || document.querySelectorAll('.chorduction-chip');
+          if (state.activeIdx >= 0) state.chips[state.activeIdx]?.classList.remove('now');
+          state.activeIdx = idx;
+          if (idx >= 0) {
+              const el = state.chips[idx];
+              el?.classList.add('now');
+              if (state.enabled) {
+                  state.programmatic = true;
+                  el?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+                  setTimeout(() => { state.programmatic = false; }, 350);
               }
           }
-  
-          // Manual override button
-          if (CONFIG.ENABLE_MANUAL_OVERRIDE) {
-              const overrideBtn = document.createElement("button");
-              overrideBtn.textContent = getT('manualOverride');
-              overrideBtn.style.cssText = "padding: 4px 8px; font-size: 11px; border-radius: 3px; border: none; background: #444; color: #fff; cursor: pointer;";
-              overrideBtn.addEventListener('click', () => {
-                  const newChord = prompt('Enter chord:', chord.chord);
-                  if (newChord) {
-                      chord.chord = newChord;
-                      updateChordDisplay(chords, lyrics, key);
-                  }
-              });
-              chordEl.appendChild(overrideBtn);
-          }
-  
-          container.appendChild(chordEl);
-      }
-  
-      display.innerHTML = "";
-      display.appendChild(container);
+      });
   }
-  
+
+  function seekToChord(idx) {
+      const chords = chordPlayState.chords;
+      if (idx < 0 || idx >= chords.length) return;
+      Spicetify.Player.seek?.(chords[idx].startMs);
+      setAutoscroll(true);
+      updatePlayhead(chords[idx].startMs);
+  }
+
+  function attachChordInteractions() {
+      const panel = document.querySelector('.chorduction-panel');
+      if (!panel || panel.__chorductionBound) return;
+      panel.__chorductionBound = true;
+      const onScroll = () => { if (!chordPlayState.programmatic) setAutoscroll(false); };
+      panel.addEventListener('wheel', onScroll, { passive: true });
+      panel.addEventListener('scroll', onScroll, { passive: true });
+      panel.addEventListener('click', e => {
+          const chip = e.target.closest('.chorduction-chip');
+          if (chip) {
+              setAutoscroll(true);
+              Spicetify.Player.seek?.(Number(chip.dataset.start));
+          }
+      });
+  }
+
+  function startPlayheadTracking(chords) {
+      chordPlayState.chords = chords;
+      chordPlayState.chips = null;
+      chordPlayState.activeIdx = -1;
+      setAutoscroll(true);
+      if (panelProgressHandler) {
+          try { Spicetify.Player.removeEventListener('onprogress', panelProgressHandler); } catch {}
+          panelProgressHandler = null;
+      }
+      panelProgressHandler = (e) => {
+          updatePlayhead(e?.data ?? Spicetify.Player.getProgress?.() ?? 0);
+      };
+      Spicetify.Player.addEventListener('onprogress', panelProgressHandler);
+      updatePlayhead(Spicetify.Player.getProgress?.() ?? 0);
+      attachChordInteractions();
+  }
+
+  function buildChordLines(chords, lyrics) {
+      if (!lyrics?.length) {
+          const BAR_MS = 4000;
+          const lines = [];
+          let bar = null;
+          for (const chord of chords) {
+              const bi = Math.floor(chord.startMs / BAR_MS);
+              if (!bar || bi !== bar.barIdx) {
+                  if (bar) lines.push(bar);
+                  bar = { barIdx: bi, startMs: bi * BAR_MS, endMs: (bi + 1) * BAR_MS, text: null, chords: [] };
+              }
+              bar.chords.push(chord);
+          }
+          if (bar) lines.push(bar);
+          return lines;
+      }
+      const lines = [];
+      let cur = null;
+      for (const chord of chords) {
+          if (!cur || chord.lyric !== cur.text) {
+              if (cur) { cur.endMs = chord.startMs; lines.push(cur); }
+              cur = { startMs: chord.startMs, endMs: 0, text: chord.lyric, chords: [] };
+          }
+          cur.chords.push(chord);
+      }
+      if (cur) {
+          const last = chords[chords.length - 1];
+          cur.endMs = last.endMs || (last.startMs + 4000);
+          lines.push(cur);
+      }
+      return lines;
+  }
+
   // =============================
   // Main Analysis Loop
   // =============================
