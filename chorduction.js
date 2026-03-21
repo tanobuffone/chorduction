@@ -716,51 +716,63 @@
           return cached;
       }
 
-      const url = `https://api.spotify.com/v1/audio-analysis/${trackId}`;
+      // Endpoint priority: internal hm:// first (bypasses public API rate limits),
+      // then public REST as fallback
+      const endpoints = [
+          `hm://audio-attributes/v1/audio-analysis/spotify:track:${trackId}`,
+          `https://api.spotify.com/v1/audio-analysis/${trackId}`,
+      ];
 
-      for (let attempt = 0; attempt < 2; attempt++) {
+      for (const url of endpoints) {
           try {
-              log.info(`Fetching audio analysis via CosmosAsync (attempt ${attempt + 1})...`);
+              log.info(`Fetching audio analysis from ${url.startsWith('hm') ? 'hm://' : 'REST API'}...`);
               const data = await Spicetify.CosmosAsync.get(url);
 
-              // CosmosAsync returns error objects instead of throwing on 4xx
               const httpStatus = data?.code || data?.status || data?.error?.status;
               if (httpStatus === 429) {
-                  throw { status: 429 };
+                  log.warn(`429 on ${url} — trying next endpoint`);
+                  continue;
+              }
+              if (httpStatus >= 400) {
+                  log.warn(`HTTP ${httpStatus} on ${url} — trying next endpoint`);
+                  continue;
               }
 
               if (data?.segments?.length && (data.beats?.length || data.tatums?.length)) {
                   analysisCache.set(trackId, data);
-                  log.debug('Analysis fetched via CosmosAsync');
+                  log.info(`Analysis fetched from ${url.startsWith('hm') ? 'hm://' : 'REST API'}`);
                   return data;
               }
-              log.warn('Analysis response missing segments/beats — data preview:', JSON.stringify(data)?.slice(0, 200));
-              return null;
+              log.warn(`Response missing segments — data preview: ${JSON.stringify(data)?.slice(0, 120)}`);
           } catch (e) {
-              const errStr = String(e?.message || e?.error || e);
-              const is429 = e?.code === 429 || e?.status === 429 || e?.error?.status === 429 || errStr.includes('429');
+              const httpStatus = e?.code || e?.status || e?.error?.status || 0;
+              log.warn(`Endpoint ${url.slice(0, 40)} failed (${httpStatus || e?.message || e})`);
+          }
+      }
 
-              if (is429 && attempt === 0) {
-                  log.warn('Rate limited by Spotify (429) — retrying in 30s');
-                  // Show countdown so the user knows what is happening
-                  for (let s = 30; s > 0; s--) {
-                      // Abort if the track changed while we were waiting
-                      const nowId = spotifyIdFromUri(getCurrentTrackMeta?.()?.uri);
-                      if (nowId && nowId !== trackId) {
-                          log.info('Track changed during rate-limit wait — aborting');
-                          return null;
-                      }
-                      if (onStatus) {
-                          onStatus(`⏳ Spotify rate limit — retrying in ${s}s…`);
-                      }
-                      await new Promise(r => setTimeout(r, 1000));
-                  }
-                  continue; // retry once
-              }
-
-              log.warn(`Audio analysis failed: ${errStr}`);
+      // All endpoints exhausted — show rate-limit countdown then retry once
+      log.warn('All audio-analysis endpoints failed — waiting 30s before final retry');
+      for (let s = 30; s > 0; s--) {
+          const nowId = spotifyIdFromUri(getCurrentTrackMeta?.()?.uri);
+          if (nowId && nowId !== trackId) {
+              log.info('Track changed during wait — aborting');
               return null;
           }
+          if (onStatus) onStatus(`⏳ Spotify rate limit — retrying in ${s}s…`);
+          await new Promise(r => setTimeout(r, 1000));
+      }
+
+      // Final retry — hm:// only
+      try {
+          const url = `hm://audio-attributes/v1/audio-analysis/spotify:track:${trackId}`;
+          log.info('Final retry via hm://...');
+          const data = await Spicetify.CosmosAsync.get(url);
+          if (data?.segments?.length && (data.beats?.length || data.tatums?.length)) {
+              analysisCache.set(trackId, data);
+              return data;
+          }
+      } catch (e) {
+          log.warn(`Final retry failed: ${e?.message || e?.code || e}`);
       }
 
       return null;
