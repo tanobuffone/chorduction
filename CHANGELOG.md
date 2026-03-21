@@ -5,6 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), version
 
 ---
 
+## [6.3.0] — 2026-03-21
+
+### Fixed
+- **Fretboard tooltip**: Now shows for ALL chords (Am7, G7, Dm7, etc.), not just the ~12 chords in the fingerings dict. Tooltip always displays chord name + scale notes (e.g. `A · C · E`); fretboard diagram appears when available and enabled
+- **Chord complexity selector**: Now actually re-renders when changed — was saving config but not applying it
+- **Prev button**: Now restarts current song (`seek(0)`) instead of seeking to previous chord. If within first 3s, skips to previous track (standard media player behavior)
+- **Next button**: Now skips to next track instead of next chord
+
+### Added
+- **Re-analyze button** (🔄): Clears cache and re-triggers analysis for the current song — useful when audio data fails to load initially
+- **`getChordNotes()`**: Helper that computes the notes in any chord (major, minor, 7th, maj7, dim, aug, sus, m7b5, etc.) using interval arithmetic — shown in hover tooltip
+- **`consolidateChords(level)`**: Applies chord simplification — Level 1 strips all extensions (Am7→Am, Cmaj7→C) and merges chords < 2s; Level 2 keeps 7ths but strips higher extensions and merges < 1s; Level 3 keeps all with < 0.5s merge minimum
+- **`SmartCache.delete(key)`**: Public delete method on SmartCache, used by re-analyze to invalidate a specific track
+
+---
+
 ## [6.1.0] — 2026-03-20
 
 ### Fixed

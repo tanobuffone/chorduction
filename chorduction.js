@@ -1,6 +1,6 @@
 // chorduction.js
 // Chorduction — Spicetify extension for chord analysis + per-chord lyrics
-// Version: 6.1.0 - Enhanced UI with player controls, multiple lyric sources, chord levels
+// Version: 6.3.0 - Fix fretboard hover, chord consolidation, prev/next as song nav, re-analyze button
 
 (function () {
   "use strict";
@@ -480,6 +480,11 @@
   
       has(key) {
           return this.cache.has(key) && Date.now() - this.cache.get(key).timestamp < this.maxAge;
+      }
+
+      delete(key) {
+          this.cache.delete(key);
+          this.accessCount.delete(key);
       }
   }
   
@@ -1389,9 +1394,11 @@
       // Chord navigation — prev/next seek within current track
       prevBtn.onclick = () => {
           const ms = Spicetify.Player.getProgress?.() ?? 0;
-          const idx = binarySearchChords(ms);
-          const isWellPast = idx >= 0 && (ms - (chordPlayState.chords[idx]?.startMs ?? 0)) > 800;
-          seekToChord(isWellPast ? idx : Math.max(0, idx - 1));
+          if (ms > 3000) {
+              Spicetify.Player.seek(0);
+          } else {
+              Spicetify.Player.back?.();
+          }
       };
       nextBtn.onclick = () => {
           const ms = Spicetify.Player.getProgress?.() ?? 0;
@@ -1511,7 +1518,7 @@
       // Prev/Play-Pause/Next chord
       const prevBtn = document.createElement('button');
       prevBtn.className = 'chorduction-ctrl-btn';
-      prevBtn.innerHTML = '⏮'; prevBtn.title = 'Previous chord';
+      prevBtn.innerHTML = '⏮'; prevBtn.title = 'Restart song (prev song if at start)';
       prevBtn.onclick = () => {
           const ms = Spicetify.Player.getProgress?.() ?? 0;
           const idx = binarySearchChords(ms);
@@ -1533,10 +1540,19 @@
 
       const nextBtn = document.createElement('button');
       nextBtn.className = 'chorduction-ctrl-btn';
-      nextBtn.innerHTML = '⏭'; nextBtn.title = 'Next chord';
-      nextBtn.onclick = () => {
-          const ms = Spicetify.Player.getProgress?.() ?? 0;
-          seekToChord(binarySearchChords(ms) + 1);
+      nextBtn.innerHTML = '⏭'; nextBtn.title = 'Next song';
+      nextBtn.onclick = () => Spicetify.Player.next?.();
+
+      // Re-analyze button
+      const reanalyzeBtn = document.createElement('button');
+      reanalyzeBtn.className = 'chorduction-ctrl-btn';
+      reanalyzeBtn.innerHTML = '🔄'; reanalyzeBtn.title = 'Re-analyze current song';
+      reanalyzeBtn.onclick = () => {
+          const trackId = spotifyIdFromUri(getCurrentTrackMeta()?.uri);
+          if (trackId) analysisCache.delete(trackId);
+          lastAttemptedTrackId = null;
+          lastAnalysisStartMs = 0;
+          analyzeCurrentTrack();
       };
 
       // Autoscroll badge
@@ -1582,9 +1598,9 @@
           opt.value = v; opt.textContent = t; opt.selected = CONFIG.CHORD_SIMPLIFICATION === parseInt(v);
           levelSel.appendChild(opt);
       });
-      levelSel.onchange = (e) => { CONFIG.CHORD_SIMPLIFICATION = parseInt(e.target.value); Settings.save(CONFIG); };
+      levelSel.onchange = (e) => { CONFIG.CHORD_SIMPLIFICATION = parseInt(e.target.value); Settings.save(CONFIG); reRenderChords(); };
 
-      [prevBtn, playBtn, nextBtn, asBadge, transposeGrp, notationSel, levelSel].forEach(el => ctrlBar.appendChild(el));
+      [prevBtn, playBtn, nextBtn, reanalyzeBtn, asBadge, transposeGrp, notationSel, levelSel].forEach(el => ctrlBar.appendChild(el));
       panel.appendChild(ctrlBar);
 
       // === Autoscroll paused banner ===
@@ -1973,17 +1989,53 @@
       return _fretTooltipEl;
   }
 
+  function getChordNotes(chordName) {
+      if (!chordName || chordName === 'N') return '';
+      const roots = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+      const flat2sharp = {'Db':'C#','Eb':'D#','Gb':'F#','Ab':'G#','Bb':'A#'};
+      // Normalize root
+      let root = chordName.match(/^[A-G][#b]?/)?.[0] || '';
+      root = flat2sharp[root] || root;
+      const rootIdx = roots.indexOf(root);
+      if (rootIdx === -1) return '';
+      const quality = chordName.slice(root.length === chordName.match(/^[A-G][#b]?/)?.[0].length ? root.length : 1);
+      // Intervals by quality (semitones from root)
+      let intervals = [0, 4, 7]; // major
+      if (/^m(?!aj|7b5)/.test(quality)) intervals = [0, 3, 7];
+      else if (/dim7/.test(quality)) intervals = [0, 3, 6, 9];
+      else if (/dim/.test(quality)) intervals = [0, 3, 6];
+      else if (/aug/.test(quality)) intervals = [0, 4, 8];
+      else if (/maj7/.test(quality)) intervals = [0, 4, 7, 11];
+      else if (/m7b5/.test(quality)) intervals = [0, 3, 6, 10];
+      else if (/m7/.test(quality)) intervals = [0, 3, 7, 10];
+      else if (/7/.test(quality)) intervals = [0, 4, 7, 10];
+      else if (/sus4/.test(quality)) intervals = [0, 5, 7];
+      else if (/sus2/.test(quality)) intervals = [0, 2, 7];
+      const notes = intervals.map(i => roots[(rootIdx + i) % 12]);
+      return notes.join(' · ');
+  }
+
   function showFretTooltip(chipEl, chordName) {
-      if (!CONFIG.SHOW_FRETBOARD_DIAGRAMS) return;
-      const diagram = generateFretboardDiagram(chordName);
-      if (!diagram) return;
       const tip = getFretTooltip();
       tip.innerHTML = '';
+      // Chord name header
       const lbl = document.createElement('div');
-      lbl.style.cssText = 'font-size:13px; font-weight:700; color:#fff; margin-bottom:4px; font-family:ui-monospace,monospace;';
+      lbl.style.cssText = 'font-size:14px; font-weight:700; color:#1db954; margin-bottom:4px; font-family:ui-monospace,monospace;';
       lbl.textContent = chordName;
       tip.appendChild(lbl);
-      tip.appendChild(diagram);
+      // Notes line
+      const notes = getChordNotes(chordName);
+      if (notes) {
+          const notesEl = document.createElement('div');
+          notesEl.style.cssText = 'font-size:11px; color:#aaa; margin-bottom:6px; font-family:ui-monospace,monospace;';
+          notesEl.textContent = notes;
+          tip.appendChild(notesEl);
+      }
+      // Fretboard diagram (optional)
+      if (CONFIG.SHOW_FRETBOARD_DIAGRAMS) {
+          const diagram = generateFretboardDiagram(chordName);
+          if (diagram) tip.appendChild(diagram);
+      }
       tip.style.display = 'block';
       const r = chipEl.getBoundingClientRect();
       const tw = tip.offsetWidth || 140;
@@ -1999,6 +2051,53 @@
   }
 
   // =============================
+  // Chord Consolidation (simplification by level)
+  // =============================
+  function consolidateChords(chords, level) {
+      if (!chords || !chords.length) return chords;
+      function simplifyName(chord, lvl) {
+          if (!chord || chord === 'N') return chord;
+          if (lvl === 1) {
+              // Level 1: basics only — strip all extensions, keep root + major/minor quality
+              return chord
+                  .replace(/maj7|maj9|maj11|maj13|M7/g, '')
+                  .replace(/m7b5|m7|m9|m11|m13/g, 'm')
+                  .replace(/7|9|11|13|sus[24]|add\d+|\+/g, '')
+                  .replace(/dim7/g, 'dim')
+                  .replace(/aug/g, '')
+                  .trim() || chord;
+          }
+          if (lvl === 2) {
+              // Level 2: 7ths only — strip 9ths and higher
+              return chord
+                  .replace(/maj9|maj11|maj13/g, 'maj7')
+                  .replace(/m9|m11|m13/g, 'm7')
+                  .replace(/(?<![a-z])9|11|13/g, '7')
+                  .replace(/sus[24]|add\d+/g, '')
+                  .trim() || chord;
+          }
+          return chord; // level 3 = full extensions, no change
+      }
+      // Min duration thresholds (ms) — chords shorter than this merge into previous
+      const minMs = level === 1 ? 2000 : level === 2 ? 1000 : 500;
+      // First pass: simplify names
+      const simplified = chords.map(c => ({ ...c, chord: simplifyName(c.chord, level) }));
+      // Second pass: merge consecutive identical + too-short chords
+      const result = [];
+      for (const c of simplified) {
+          const dur = (c.endMs || 0) - (c.startMs || 0);
+          if (result.length > 0 && result[result.length - 1].chord === c.chord) {
+              result[result.length - 1] = { ...result[result.length - 1], endMs: c.endMs };
+          } else if (dur < minMs && result.length > 0) {
+              result[result.length - 1] = { ...result[result.length - 1], endMs: c.endMs };
+          } else {
+              result.push({ ...c });
+          }
+      }
+      return result;
+  }
+
+  // =============================
   // Re-Render on Notation / Transpose Change
   // =============================
   function reRenderChords() {
@@ -2011,7 +2110,8 @@
               ...c, chord: ChordNotation.convert(c.chord, CONFIG.CHORD_NOTATION, currentAnalysis.key)
           }))
           : transposed;
-      const synced = syncChordsToLyrics(displayed, currentAnalysis.lyrics);
+      const consolidated = consolidateChords(displayed, CONFIG.CHORD_SIMPLIFICATION);
+      const synced = syncChordsToLyrics(consolidated, currentAnalysis.lyrics);
       currentAnalysis.chords = synced;
       updateChordDisplay(synced, currentAnalysis.lyrics, currentAnalysis.key);
       // Update transpose display label in panel if open
