@@ -738,7 +738,7 @@
               return null;
           } catch (e) {
               const errStr = String(e?.message || e?.error || e);
-              const is429 = e?.status === 429 || e?.error?.status === 429 || errStr.includes('429');
+              const is429 = e?.code === 429 || e?.status === 429 || e?.error?.status === 429 || errStr.includes('429');
 
               if (is429 && attempt === 0) {
                   log.warn('Rate limited by Spotify (429) — retrying in 30s');
@@ -1718,12 +1718,15 @@
   let currentAnalysis = null;
   let analysisInProgress = false;
   let lastAttemptedTrackId = null;
+  let lastAnalysisStartMs = 0;
   
   async function analyzeCurrentTrack() {
-      if (analysisInProgress) {
-          log.debug("Analysis already in progress");
+      const _now = Date.now();
+      if (analysisInProgress || (_now - lastAnalysisStartMs < 2000)) {
+          log.debug("Analysis debounced or already in progress");
           return;
       }
+      lastAnalysisStartMs = _now;
   
       const _trackId = spotifyIdFromUri(getCurrentTrackMeta()?.uri);
       if (_trackId && _trackId === lastAttemptedTrackId && !analysisCache.get(_trackId)) {
