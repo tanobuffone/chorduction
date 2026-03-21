@@ -5,16 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), version
 
 ---
 
-## [Unreleased] — v6.1.0
+## [6.1.0] — 2026-03-20
 
 ### Fixed
-- DOM selector fragility across Spotify UI versions (multiple fallback strategies)
-- Keyboard shortcut registration timing on Spicetify load
+- **429 rate-limit detection**: CosmosAsync returns `{code:429}` (not `{status:429}`) — updated all detection paths
+- **Stale DOM reference**: `analyzeCurrentTrack` captured `display` once at start; if panel was reopened a new element was created but updates went to the detached old one — replaced with dynamic getter `getDisplay()` called at each update point
+- **Double init**: `chorduction.js` was listed twice in Spicetify config (`.\chorduction.js` + `chorduction.js`), causing two simultaneous analyses per track change
+- **`onplaypause` re-analysis loop**: `onplaypause` fired immediately after `ontrackchange` finished, restarting analysis and overwriting "Audio Analysis Unavailable" with "Analyzing track..." in a loop
+- **Debounce**: Added 2s debounce + `lastAttemptedTrackId` guard to prevent concurrent analysis calls
+- **Non-track URI handling**: Podcasts, local files, and ads now exit silently instead of throwing "Invalid track URI"
+- **Panel reopen state**: Opening the panel now shows existing `currentAnalysis` immediately, or triggers fresh analysis with debounce reset
 
 ### Added
-- Sidebar button as fallback when player controls injection fails
-- Improved user-facing error messages with actionable suggestions
-- Fretboard diagrams for dominant 7th chords
+- 30-second countdown with user-visible `⏳ Spotify rate limit — retrying in Xs…` message via `onStatus` callback
+- Automatic retry after rate-limit wait (1 retry, then shows "Audio Analysis Unavailable")
+- Track-change detection during rate-limit wait — aborts countdown and resets if song changes
+- "Audio Analysis Unavailable" UI with "Add Chords Manually" button as fallback when API is blocked
+- Debug log for CosmosAsync response body on unexpected returns
 
 ---
 
