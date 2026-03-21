@@ -716,63 +716,39 @@
           return cached;
       }
 
-      // Endpoint priority: internal hm:// first (bypasses public API rate limits),
-      // then public REST as fallback
-      const endpoints = [
-          `hm://audio-attributes/v1/audio-analysis/spotify:track:${trackId}`,
-          `https://api.spotify.com/v1/audio-analysis/${trackId}`,
-      ];
-
-      for (const url of endpoints) {
+      // 1. Spicetify.getAudioData — built-in, uses internal Spicetify transport
+      if (typeof Spicetify.getAudioData === 'function') {
           try {
-              log.info(`Fetching audio analysis from ${url.startsWith('hm') ? 'hm://' : 'REST API'}...`);
-              const data = await Spicetify.CosmosAsync.get(url);
-
-              const httpStatus = data?.code || data?.status || data?.error?.status;
-              if (httpStatus === 429) {
-                  log.warn(`429 on ${url} — trying next endpoint`);
-                  continue;
-              }
-              if (httpStatus >= 400) {
-                  log.warn(`HTTP ${httpStatus} on ${url} — trying next endpoint`);
-                  continue;
-              }
-
+              log.info('Fetching audio analysis via Spicetify.getAudioData...');
+              const data = await Spicetify.getAudioData(`spotify:track:${trackId}`);
               if (data?.segments?.length && (data.beats?.length || data.tatums?.length)) {
                   analysisCache.set(trackId, data);
-                  log.info(`Analysis fetched from ${url.startsWith('hm') ? 'hm://' : 'REST API'}`);
+                  log.info('Analysis fetched via getAudioData');
                   return data;
               }
-              log.warn(`Response missing segments — data preview: ${JSON.stringify(data)?.slice(0, 120)}`);
+              log.warn('getAudioData returned no segments');
           } catch (e) {
-              const httpStatus = e?.code || e?.status || e?.error?.status || 0;
-              log.warn(`Endpoint ${url.slice(0, 40)} failed (${httpStatus || e?.message || e})`);
+              log.warn(`getAudioData failed: ${e?.message || e}`);
           }
       }
 
-      // All endpoints exhausted — show rate-limit countdown then retry once
-      log.warn('All audio-analysis endpoints failed — waiting 30s before final retry');
-      for (let s = 30; s > 0; s--) {
-          const nowId = spotifyIdFromUri(getCurrentTrackMeta?.()?.uri);
-          if (nowId && nowId !== trackId) {
-              log.info('Track changed during wait — aborting');
-              return null;
-          }
-          if (onStatus) onStatus(`⏳ Spotify rate limit — retrying in ${s}s…`);
-          await new Promise(r => setTimeout(r, 1000));
-      }
-
-      // Final retry — hm:// only
+      // 2. spclient endpoint — confirmed working via diagnostic
       try {
-          const url = `hm://audio-attributes/v1/audio-analysis/spotify:track:${trackId}`;
-          log.info('Final retry via hm://...');
-          const data = await Spicetify.CosmosAsync.get(url);
-          if (data?.segments?.length && (data.beats?.length || data.tatums?.length)) {
-              analysisCache.set(trackId, data);
-              return data;
+          log.info('Fetching audio analysis via spclient...');
+          const data = await Spicetify.CosmosAsync.get(
+              `https://spclient.wg.spotify.com/audio-attributes/v1/audio-analysis/${trackId}`
+          );
+          const httpStatus = data?.code || data?.status || data?.error?.status;
+          if (!httpStatus || httpStatus < 400) {
+              if (data?.segments?.length && (data.beats?.length || data.tatums?.length)) {
+                  analysisCache.set(trackId, data);
+                  log.info('Analysis fetched via spclient');
+                  return data;
+              }
           }
+          log.warn(`spclient response: status=${httpStatus} preview=${JSON.stringify(data)?.slice(0, 100)}`);
       } catch (e) {
-          log.warn(`Final retry failed: ${e?.message || e?.code || e}`);
+          log.warn(`spclient failed: ${e?.message || e?.code || e}`);
       }
 
       return null;
