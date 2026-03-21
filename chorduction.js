@@ -333,41 +333,96 @@
       const style = document.createElement('style');
       style.id = 'chorduction-style';
       style.textContent = `
-          .chorduction-panel { overflow: auto; padding: 12px; box-sizing: border-box; }
-          .chorduction-timeline { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; margin-top: 8px; }
-          .chorduction-line { margin: 16px 0; position: relative; }
-          .chorduction-line-chords-container { position: relative; height: 30px; margin-bottom: 4px; overflow: visible; }
-          .chorduction-line-lyric { color: #cfcfcf; font-size: 14px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
+          /* === Panel Shell === */
+          .chorduction-panel { overflow: auto; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+
+          /* === Header === */
+          .chorduction-hdr { padding: 14px 16px 10px; border-bottom: 1px solid #1e1e1e; background: #0a0a0a; }
+          .chorduction-hdr-title { font-size: 16px; font-weight: 700; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .chorduction-hdr-artist { font-size: 12px; color: #888; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .chorduction-hdr-pills { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; align-items: center; }
+          .chorduction-pill { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; border: 1px solid; }
+          .chorduction-pill-key { color: #1db954; border-color: #1db95455; background: #0d281820; }
+          .chorduction-pill-bpm { color: #aaa; border-color: #333; background: #1a1a1a; }
+          .chorduction-pill-mode { color: #4a9eff; border-color: #4a9eff44; background: #0a1a3020; }
+
+          /* === Controls Bar === */
+          .chorduction-ctrl-bar { display: flex; gap: 6px; align-items: center; padding: 8px 12px; background: #111; border-bottom: 1px solid #1e1e1e; flex-wrap: wrap; }
+          .chorduction-ctrl-btn { background: transparent; border: none; color: #888; cursor: pointer; padding: 5px 9px; border-radius: 50%; font-size: 14px; transition: all 0.15s; }
+          .chorduction-ctrl-btn:hover { color: #fff; background: #2a2a2a; }
+          .chorduction-ctrl-btn.active-play { color: #1db954; }
+          .chorduction-autoscroll-badge { font-size: 11px; color: #888; padding: 2px 8px; border: 1px solid #333; border-radius: 99px; cursor: pointer; white-space: nowrap; transition: all 0.15s; }
+          .chorduction-autoscroll-badge:hover { border-color: #555; color: #ccc; }
+          .chorduction-autoscroll-badge.on { color: #1db954; border-color: #1db95455; }
+          .chorduction-transpose-group { display: flex; align-items: center; gap: 3px; border: 1px solid #333; border-radius: 6px; overflow: hidden; }
+          .chorduction-transpose-group button { background: #1e1e1e; border: none; color: #ccc; cursor: pointer; padding: 4px 10px; font-size: 13px; font-weight: 700; transition: background 0.1s; }
+          .chorduction-transpose-group button:hover { background: #2d2d2d; }
+          .chorduction-transpose-group span { min-width: 34px; text-align: center; font-size: 12px; font-family: ui-monospace, monospace; color: #fff; padding: 0 4px; }
+          .chorduction-notation-select, .chorduction-level-select { background: #1e1e1e; border: 1px solid #333; border-radius: 6px; color: #ccc; font-size: 11px; padding: 4px 8px; cursor: pointer; }
+
+          /* === Autoscroll Paused Banner === */
+          .chorduction-paused-banner { display: none; text-align: center; padding: 5px 12px; font-size: 11px; color: #888; background: #0d0d0d; border-bottom: 1px solid #1e1e1e; }
+          .chorduction-paused-banner.active { display: flex; align-items: center; justify-content: center; gap: 8px; }
+          .chorduction-resume-btn { background: #1e1e1e; border: 1px solid #444; border-radius: 4px; color: #ccc; font-size: 11px; padding: 2px 10px; cursor: pointer; }
+          .chorduction-resume-btn:hover { border-color: #1db954; color: #1db954; }
+
+          /* === Timeline === */
+          .chorduction-timeline { padding: 0 12px 20px; }
+
+          /* === Section Headers === */
+          .chorduction-section { margin-top: 4px; }
+          .chorduction-sec-hdr { display: flex; align-items: center; gap: 8px; padding: 14px 0 6px; }
+          .chorduction-sec-hdr-line { flex: 1; height: 1px; background: #222; }
+          .chorduction-sec-hdr-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #555; white-space: nowrap; }
+          .chorduction-sec-hdr[data-type="chorus"] .chorduction-sec-hdr-label { color: #1db954; }
+          .chorduction-sec-hdr[data-type="chorus"] .chorduction-sec-hdr-line { background: #1db95430; }
+          .chorduction-sec-hdr[data-type="verse"] .chorduction-sec-hdr-label { color: #4a9eff; }
+          .chorduction-sec-hdr[data-type="verse"] .chorduction-sec-hdr-line { background: #4a9eff28; }
+          .chorduction-sec-hdr[data-type="bridge"] .chorduction-sec-hdr-label { color: #ff8c1a; }
+          .chorduction-sec-hdr[data-type="bridge"] .chorduction-sec-hdr-line { background: #ff8c1a28; }
+          .chorduction-sec-hdr[data-type="intro"] .chorduction-sec-hdr-label,
+          .chorduction-sec-hdr[data-type="outro"] .chorduction-sec-hdr-label { color: #666; }
+
+          /* === Lyric Lines === */
+          .chorduction-line { margin: 8px 0; padding: 4px 6px; border-radius: 5px; transition: background 0.25s; }
+          .chorduction-line.now-line { background: rgba(29,185,84,0.07); }
+          .chorduction-line-chips { position: relative; height: 28px; margin-bottom: 5px; }
+          .chorduction-line-lyric { font-size: 13px; line-height: 1.45; color: #888; transition: color 0.25s; padding-left: 2px; }
+          .chorduction-line.now-line .chorduction-line-lyric { color: #ddd; font-weight: 500; }
+
+          /* === Chord Chips === */
           .chorduction-chip {
-              display: inline-flex; align-items: center; gap: 3px;
-              padding: 3px 7px; border-radius: 5px;
-              border: 1px solid #3a3a3a; background: #1a1a1a;
-              color: #e6e6e6; cursor: pointer; font-size: 12px; font-weight: 700;
+              display: inline-flex; align-items: center; justify-content: center;
+              padding: 2px 8px; border-radius: 4px;
+              border: 1px solid #2e2e2e; background: #141414;
+              color: #bbb; cursor: pointer; font-size: 12px; font-weight: 700;
               position: absolute; top: 0; white-space: nowrap;
-              transition: background 0.12s, transform 0.1s;
-              user-select: none;
+              transition: background 0.1s, border-color 0.1s, transform 0.12s, box-shadow 0.15s, color 0.1s;
+              user-select: none; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
           }
-          .chorduction-chip:hover { background: #2d2d2d; transform: translateY(-1px); }
-          .chorduction-chip.now { border-color: #1db954 !important; background: #0d2818 !important; color: #1db954; }
-          .chorduction-fretboard-tip {
-              display: none; position: absolute; top: 36px; left: 50%;
-              transform: translateX(-50%); background: #181818;
-              border: 1px solid #444; border-radius: 6px; padding: 4px;
-              z-index: 1000; box-shadow: 0 4px 14px rgba(0,0,0,0.7);
-              pointer-events: none;
+          .chorduction-chip:hover { background: #252525; transform: translateY(-1px); z-index: 2; border-color: #444; }
+
+          /* Chord function tints */
+          .chorduction-chip[data-fn="tonic"]       { border-color: #1db95440; color: #8ecfa8; }
+          .chorduction-chip[data-fn="subdominant"] { border-color: #4a9eff38; color: #88b8f0; }
+          .chorduction-chip[data-fn="dominant"]    { border-color: #ff8c1a38; color: #e8a86a; }
+          .chorduction-chip[data-fn="secondary"]   { border-color: #9b59b630; color: #c4a0e0; }
+
+          /* Active chip — the one playing NOW */
+          .chorduction-chip.now {
+              border-width: 2px !important; transform: translateY(-2px) scale(1.08) !important;
+              z-index: 4; font-size: 13px;
           }
-          .chorduction-chip:hover .chorduction-fretboard-tip { display: block; }
-          .chorduction-autoscroll-banner {
-              display: none; margin-top: 4px; color: #aaa; font-size: 12px; text-align: center; padding: 4px;
-          }
-          .chorduction-autoscroll-banner.active { display: block; }
+          .chorduction-chip[data-fn="tonic"].now       { border-color: #1db954; color: #1db954; background: #0a2010; box-shadow: 0 0 10px #1db95440; }
+          .chorduction-chip[data-fn="subdominant"].now { border-color: #4a9eff; color: #4a9eff; background: #061530; box-shadow: 0 0 10px #4a9eff40; }
+          .chorduction-chip[data-fn="dominant"].now    { border-color: #ff8c1a; color: #ff8c1a; background: #1e0e00; box-shadow: 0 0 10px #ff8c1a40; }
+          .chorduction-chip[data-fn="secondary"].now   { border-color: #9b59b6; color: #9b59b6; background: #150a1e; box-shadow: 0 0 10px #9b59b640; }
+          .chorduction-chip[data-fn="neutral"].now,
+          .chorduction-chip:not([data-fn]).now         { border-color: #e0e0e0; color: #fff; background: #1a1a1a; box-shadow: 0 0 8px rgba(255,255,255,0.2); }
+
+          /* === Spinner === */
           @keyframes chorduction-spin { to { transform: rotate(360deg); } }
-          .chorduction-spinner {
-              width: 18px; height: 18px; border: 2px solid #444;
-              border-top-color: #1db954; border-radius: 50%;
-              animation: chorduction-spin 1s linear infinite;
-              display: inline-block; vertical-align: middle; margin-right: 8px;
-          }
+          .chorduction-spinner { width: 16px; height: 16px; border: 2px solid #2a2a2a; border-top-color: #1db954; border-radius: 50%; animation: chorduction-spin 0.85s linear infinite; display: inline-block; vertical-align: middle; margin-right: 8px; }
       `;
       document.head.appendChild(style);
       extensionCleanup.addElement(style);
@@ -1104,94 +1159,54 @@
       }
   
       // Process audio analysis to extract chords
-      processAnalysis(analysis, lyrics) {
+      processAnalysis(analysis) {
           if (!analysis?.segments?.length) {
-              return { chords: [], key: 'C', confidence: 0 };
+              return { rawChords: [], key: 'C', confidence: 0, tempo: 0 };
           }
-  
-          // Build chroma vector from segments
+
           const beats = analysis.beats || analysis.tatums || [];
           const avgChroma = new Array(12).fill(0);
-          
-          // Use first 30 seconds or first 50 segments for key detection
           const keySegments = analysis.segments.slice(0, 50).filter(s => s.pitches?.length === 12);
           for (const seg of keySegments) {
-              for (let i = 0; i < 12; i++) {
-                  avgChroma[i] += seg.pitches[i] || 0;
-              }
+              for (let i = 0; i < 12; i++) avgChroma[i] += seg.pitches[i] || 0;
           }
           if (keySegments.length > 0) {
               for (let i = 0; i < 12; i++) avgChroma[i] /= keySegments.length;
           }
-  
+
           const detectedKey = this.estimateKey(avgChroma);
           log.info(`Detected key: ${detectedKey}`);
-  
-          // Detect chords per beat/bar with smoothing
-          const chords = [];
-          let currentChord = null;
-          let chordStart = 0;
+
+          const rawChords = [];
+          let currentChord = null, chordStart = 0, beatCount = 0;
           const smoothingBeats = CONFIG.SMOOTHING_BEATS;
-          let beatCount = 0;
-  
+
           for (const beat of beats) {
               const segment = this.findSegmentForTime(beat.start, analysis.segments);
               if (!segment?.pitches?.length) continue;
-  
               const result = this.detectChord(segment.pitches);
-              
-              // Apply smoothing
               if (result.chord === currentChord || beatCount < smoothingBeats) {
-                  if (beatCount >= smoothingBeats && result.confidence > 0.3) {
-                      currentChord = result.chord;
-                  }
+                  if (beatCount >= smoothingBeats && result.confidence > 0.3) currentChord = result.chord;
               } else {
-                  if (currentChord) {
-                      chords.push({
-                          chord: currentChord,
-                          startMs: chordStart * 1000,
-                          endMs: beat.start * 1000,
-                          confidence: result.confidence
-                      });
-                  }
+                  if (currentChord) rawChords.push({ chord: currentChord, startMs: chordStart * 1000, endMs: beat.start * 1000, confidence: result.confidence });
                   currentChord = result.chord;
                   chordStart = beat.start;
               }
               beatCount++;
           }
-  
-          // Add final chord
           if (currentChord) {
               const lastBeat = beats[beats.length - 1];
-              chords.push({
-                  chord: currentChord,
-                  startMs: chordStart * 1000,
-                  endMs: lastBeat ? (lastBeat.start + lastBeat.duration) * 1000 : 0,
-                  confidence: CONFIG.MIN_CONFIDENCE
-              });
+              rawChords.push({ chord: currentChord, startMs: chordStart * 1000, endMs: lastBeat ? (lastBeat.start + lastBeat.duration) * 1000 : 0, confidence: CONFIG.MIN_CONFIDENCE });
           }
-  
-          // Apply transpose
-          const transposedChords = chords.map(c => ({
-              ...c,
-              chord: Transposer.transpose(c.chord, CONFIG.TRANSPOSE_SEMITONES)
-          }));
-  
-          // Convert notation if needed
-          const finalChords = CONFIG.CHORD_NOTATION !== 'standard'
-              ? transposedChords.map(c => ({
-                  ...c,
-                  chord: ChordNotation.convert(c.chord, CONFIG.CHORD_NOTATION, detectedKey)
-              }))
-              : transposedChords;
-  
+
           return {
-              chords: finalChords,
+              rawChords,
               key: detectedKey,
-              confidence: chords.reduce((sum, c) => sum + (c.confidence || 0), 0) / Math.max(chords.length, 1)
+              confidence: rawChords.reduce((s, c) => s + (c.confidence || 0), 0) / Math.max(rawChords.length, 1),
+              tempo: analysis.track?.tempo || 0
           };
       }
-  
+
       findSegmentForTime(time, segments) {
           // Binary search for segment at time
           let left = 0, right = segments.length - 1;
@@ -1465,205 +1480,266 @@
   }
 
   function getMainPanelContent() {
-      const container = document.createElement("div");
-      container.className = "chorduction-panel";
-      container.id = "chorduction-panel";
+      const panel = document.createElement('div');
+      panel.className = 'chorduction-panel';
+      panel.id = 'chorduction-panel';
 
-      // Header
-      const header = document.createElement("div");
-      header.style.cssText = "margin-bottom: 10px; text-align: center;";
-      header.innerHTML = `<h2 style="margin:0 0 4px 0; display:flex; align-items:center; justify-content:center; gap:10px;">
-          ${getT('title')} <span style="font-size:12px; color:#888;">v6.1.0</span>
-      </h2>`;
-      container.appendChild(header);
+      ensureStyles();
 
-      // Player Controls (chord navigation)
-      container.appendChild(createPlayerControls());
-
-      // Autoscroll paused banner
-      const autoscrollBanner = document.createElement("div");
-      autoscrollBanner.setAttribute("data-role", "autoscroll-banner");
-      autoscrollBanner.className = "chorduction-autoscroll-banner";
-      autoscrollBanner.innerHTML = 'Autoscroll paused. ';
-      const resumeBtn = document.createElement("button");
-      resumeBtn.textContent = "Resume";
-      resumeBtn.style.cssText = "margin-left:6px; padding:2px 8px; border-radius:4px; border:1px solid #555; background:#333; color:#ddd; cursor:pointer; font-size:11px;";
-      resumeBtn.onclick = () => setAutoscroll(true);
-      autoscrollBanner.appendChild(resumeBtn);
-      container.appendChild(autoscrollBanner);
-
-      // Transpose and Notation controls
-      const controlsRow = document.createElement("div");
-      controlsRow.style.cssText = "display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; align-items:center;";
-      controlsRow.innerHTML = `
-          <div style="display:flex; gap:4px; align-items:center;">
-              <button id="transpose-down" style="padding:3px 7px; border-radius:4px; border:none; background:#444; color:#fff; cursor:pointer; font-size:12px;">−</button>
-              <span id="transpose-value" style="min-width:36px; text-align:center; font-size:12px;">${Transposer.getDisplay(CONFIG.TRANSPOSE_SEMITONES) || '0'}</span>
-              <button id="transpose-up" style="padding:3px 7px; border-radius:4px; border:none; background:#444; color:#fff; cursor:pointer; font-size:12px;">+</button>
+      // === Header: track info + musical context ===
+      const hdr = document.createElement('div');
+      hdr.className = 'chorduction-hdr';
+      const meta = getCurrentTrackMeta();
+      const key = currentAnalysis?.key || '—';
+      const tempo = currentAnalysis?.tempo ? Math.round(currentAnalysis.tempo) : null;
+      const isMinor = key.endsWith('m');
+      hdr.innerHTML = `
+          <div class="chorduction-hdr-title">${escapeHtml(meta.title || 'No track playing')}</div>
+          <div class="chorduction-hdr-artist">${escapeHtml(meta.artist || '')}</div>
+          <div class="chorduction-hdr-pills">
+              <span class="chorduction-pill chorduction-pill-key">Key: ${escapeHtml(key)}</span>
+              ${tempo ? `<span class="chorduction-pill chorduction-pill-bpm">${tempo} BPM</span>` : ''}
+              <span class="chorduction-pill chorduction-pill-mode">${isMinor ? 'Minor' : 'Major'}</span>
           </div>
-          <select id="notation-select" style="padding:3px 8px; border-radius:4px; border:none; background:#333; color:#fff; font-size:12px;">
-              ${ChordNotation.getAvailable().map(n => `<option value="${n}" ${CONFIG.CHORD_NOTATION === n ? 'selected' : ''}>${ChordNotation.getDisplayName(n)}</option>`).join('')}
-          </select>
-          <select id="chord-level-select" style="padding:3px 8px; border-radius:4px; border:none; background:#333; color:#fff; font-size:12px;">
-              <option value="1" ${CONFIG.CHORD_SIMPLIFICATION === 1 ? 'selected' : ''}>${getT('basicsOnly')}</option>
-              <option value="2" ${CONFIG.CHORD_SIMPLIFICATION === 2 ? 'selected' : ''}>${getT('intermediate')}</option>
-              <option value="3" ${CONFIG.CHORD_SIMPLIFICATION === 3 ? 'selected' : ''}>${getT('advanced')}</option>
-          </select>
       `;
-      container.appendChild(controlsRow);
+      panel.appendChild(hdr);
 
-      controlsRow.querySelector('#transpose-down')?.addEventListener('click', () => {
-          Transposer.setTranspose(CONFIG.TRANSPOSE_SEMITONES - 1);
-          controlsRow.querySelector('#transpose-value').textContent = Transposer.getDisplay(CONFIG.TRANSPOSE_SEMITONES) || '0';
-      });
-      controlsRow.querySelector('#transpose-up')?.addEventListener('click', () => {
-          Transposer.setTranspose(CONFIG.TRANSPOSE_SEMITONES + 1);
-          controlsRow.querySelector('#transpose-value').textContent = Transposer.getDisplay(CONFIG.TRANSPOSE_SEMITONES) || '0';
-      });
-      controlsRow.querySelector('#notation-select')?.addEventListener('change', (e) => {
-          ChordNotation.setNotation(e.target.value);
-      });
-      controlsRow.querySelector('#chord-level-select')?.addEventListener('change', (e) => {
-          CONFIG.CHORD_SIMPLIFICATION = parseInt(e.target.value);
-          Settings.save(CONFIG);
-          log.info(`Chord level set to ${CONFIG.CHORD_SIMPLIFICATION}`);
-      });
+      // === Controls Bar ===
+      const ctrlBar = document.createElement('div');
+      ctrlBar.className = 'chorduction-ctrl-bar';
 
-      // Chord display area
-      const chordDisplay = document.createElement("div");
-      chordDisplay.id = "chord-display";
-      chordDisplay.style.cssText = "min-height:120px; padding:12px; background:#111; border-radius:8px; margin-bottom:12px;";
+      // Prev/Play-Pause/Next chord
+      const prevBtn = document.createElement('button');
+      prevBtn.className = 'chorduction-ctrl-btn';
+      prevBtn.innerHTML = '⏮'; prevBtn.title = 'Previous chord';
+      prevBtn.onclick = () => {
+          const ms = Spicetify.Player.getProgress?.() ?? 0;
+          const idx = binarySearchChords(ms);
+          const isWellPast = idx >= 0 && (ms - (chordPlayState.chords[idx]?.startMs ?? 0)) > 800;
+          seekToChord(isWellPast ? idx : Math.max(0, idx - 1));
+      };
+
+      const playBtn = document.createElement('button');
+      playBtn.className = 'chorduction-ctrl-btn';
+      playBtn.id = 'chorduction-pp-btn';
+      const updatePP = () => {
+          const playing = Spicetify?.Player?.isPlaying?.() ?? false;
+          playBtn.innerHTML = playing ? '⏸' : '▶';
+          playBtn.classList.toggle('active-play', playing);
+      };
+      playBtn.onclick = () => Spicetify.Player?.togglePlay?.();
+      Spicetify.Player?.addEventListener?.('onplaypause', updatePP);
+      updatePP();
+
+      const nextBtn = document.createElement('button');
+      nextBtn.className = 'chorduction-ctrl-btn';
+      nextBtn.innerHTML = '⏭'; nextBtn.title = 'Next chord';
+      nextBtn.onclick = () => {
+          const ms = Spicetify.Player.getProgress?.() ?? 0;
+          seekToChord(binarySearchChords(ms) + 1);
+      };
+
+      // Autoscroll badge
+      const asBadge = document.createElement('span');
+      asBadge.className = 'chorduction-autoscroll-badge on';
+      asBadge.setAttribute('data-role', 'autoscroll-status');
+      asBadge.title = 'Click to toggle autoscroll';
+      asBadge.textContent = 'Autoscroll: On';
+      asBadge.onclick = () => setAutoscroll(!chordPlayState.enabled);
+
+      // Transpose controls
+      const transposeGrp = document.createElement('div');
+      transposeGrp.className = 'chorduction-transpose-group';
+      const tdBtn = document.createElement('button'); tdBtn.textContent = '−'; tdBtn.title = 'Transpose down';
+      const tuBtn = document.createElement('button'); tuBtn.textContent = '+'; tuBtn.title = 'Transpose up';
+      const tvSpan = document.createElement('span');
+      tvSpan.id = 'transpose-value';
+      tvSpan.textContent = Transposer.getDisplay(CONFIG.TRANSPOSE_SEMITONES) || '0';
+      transposeGrp.appendChild(tdBtn);
+      transposeGrp.appendChild(tvSpan);
+      transposeGrp.appendChild(tuBtn);
+      tdBtn.onclick = () => { Transposer.setTranspose(CONFIG.TRANSPOSE_SEMITONES - 1); reRenderChords(); };
+      tuBtn.onclick = () => { Transposer.setTranspose(CONFIG.TRANSPOSE_SEMITONES + 1); reRenderChords(); };
+
+      // Notation selector
+      const notationSel = document.createElement('select');
+      notationSel.className = 'chorduction-notation-select';
+      notationSel.title = 'Chord notation';
+      ChordNotation.getAvailable().forEach(n => {
+          const opt = document.createElement('option');
+          opt.value = n; opt.textContent = ChordNotation.getDisplayName(n);
+          opt.selected = CONFIG.CHORD_NOTATION === n;
+          notationSel.appendChild(opt);
+      });
+      notationSel.onchange = (e) => { ChordNotation.setNotation(e.target.value); reRenderChords(); };
+
+      // Chord level selector
+      const levelSel = document.createElement('select');
+      levelSel.className = 'chorduction-level-select';
+      levelSel.title = 'Chord complexity';
+      [['1', getT('basicsOnly')], ['2', getT('intermediate')], ['3', getT('advanced')]].forEach(([v, t]) => {
+          const opt = document.createElement('option');
+          opt.value = v; opt.textContent = t; opt.selected = CONFIG.CHORD_SIMPLIFICATION === parseInt(v);
+          levelSel.appendChild(opt);
+      });
+      levelSel.onchange = (e) => { CONFIG.CHORD_SIMPLIFICATION = parseInt(e.target.value); Settings.save(CONFIG); };
+
+      [prevBtn, playBtn, nextBtn, asBadge, transposeGrp, notationSel, levelSel].forEach(el => ctrlBar.appendChild(el));
+      panel.appendChild(ctrlBar);
+
+      // === Autoscroll paused banner ===
+      const pausedBanner = document.createElement('div');
+      pausedBanner.className = 'chorduction-paused-banner';
+      pausedBanner.setAttribute('data-role', 'autoscroll-banner');
+      pausedBanner.innerHTML = '<span>Autoscroll paused</span>';
+      const resumeBtn = document.createElement('button');
+      resumeBtn.className = 'chorduction-resume-btn';
+      resumeBtn.textContent = 'Resume';
+      resumeBtn.onclick = () => setAutoscroll(true);
+      pausedBanner.appendChild(resumeBtn);
+      panel.appendChild(pausedBanner);
+
+      // === Chord display area ===
+      const chordDisplay = document.createElement('div');
+      chordDisplay.id = 'chord-display';
+      chordDisplay.style.cssText = 'min-height: 150px;';
 
       if (currentAnalysis?.chords?.length) {
           setTimeout(() => updateChordDisplay(currentAnalysis.chords, currentAnalysis.lyrics, currentAnalysis.key), 0);
       } else {
-          chordDisplay.innerHTML = `<div style="color:#888; display:flex; align-items:center; gap:8px;"><span class="chorduction-spinner"></span>${getT('analyzing')}</div>`;
+          chordDisplay.innerHTML = `<div style="color:#888;padding:20px 16px;display:flex;align-items:center;"><span class="chorduction-spinner"></span>${getT('analyzing')}</div>`;
           lastAnalysisStartMs = 0;
           setTimeout(analyzeCurrentTrack, 100);
       }
-      container.appendChild(chordDisplay);
+      panel.appendChild(chordDisplay);
 
-      // Settings (collapsed)
-      const settingsToggle = document.createElement("details");
-      settingsToggle.style.cssText = "margin-bottom:10px;";
-      settingsToggle.innerHTML = `
-          <summary style="cursor:pointer; padding:6px 10px; background:#2a2a2a; border-radius:4px; font-size:12px; color:#aaa;">Settings</summary>
-          <div style="padding:12px; background:#1e1e1e; border-radius:0 0 4px 4px;">
-              <label style="display:block; margin-bottom:8px; font-size:12px;">
-                  <input type="checkbox" id="show-lyrics" ${CONFIG.SHOW_LYRICS ? 'checked' : ''}> Show lyrics
+      // === Settings (collapsed) + Export ===
+      const settingsDetails = document.createElement('details');
+      settingsDetails.style.cssText = 'padding: 0 12px 12px;';
+      settingsDetails.innerHTML = `
+          <summary style="cursor:pointer;padding:6px 4px;font-size:11px;color:#666;list-style:none;">⚙ Settings &amp; Export</summary>
+          <div style="padding:10px 4px 0;display:flex;flex-direction:column;gap:8px;">
+              <label style="font-size:12px;color:#aaa;display:flex;align-items:center;gap:8px;">
+                  <input type="checkbox" id="chrd-show-lyrics" ${CONFIG.SHOW_LYRICS ? 'checked' : ''}> Show lyrics
               </label>
-              <label style="display:block; margin-bottom:8px; font-size:12px;">
-                  <input type="checkbox" id="show-fretboard" ${CONFIG.SHOW_FRETBOARD_DIAGRAMS ? 'checked' : ''}> Fretboard on hover
+              <label style="font-size:12px;color:#aaa;display:flex;align-items:center;gap:8px;">
+                  <input type="checkbox" id="chrd-show-fretboard" ${CONFIG.SHOW_FRETBOARD_DIAGRAMS ? 'checked' : ''}> Fretboard on hover
               </label>
+              <div style="display:flex;gap:6px;align-items:center;margin-top:4px;">
+                  <span style="font-size:11px;color:#666;">Export:</span>
+                  <button id="export-txt" style="padding:3px 10px;border-radius:4px;border:none;background:#222;color:#aaa;cursor:pointer;font-size:11px;">TXT</button>
+                  <button id="export-json" style="padding:3px 10px;border-radius:4px;border:none;background:#222;color:#aaa;cursor:pointer;font-size:11px;">JSON</button>
+                  <button id="export-chordpro" style="padding:3px 10px;border-radius:4px;border:none;background:#222;color:#aaa;cursor:pointer;font-size:11px;">ChordPro</button>
+              </div>
           </div>
       `;
-      container.appendChild(settingsToggle);
-      settingsToggle.querySelector('#show-lyrics')?.addEventListener('change', (e) => { CONFIG.SHOW_LYRICS = e.target.checked; Settings.save(CONFIG); });
-      settingsToggle.querySelector('#show-fretboard')?.addEventListener('change', (e) => { CONFIG.SHOW_FRETBOARD_DIAGRAMS = e.target.checked; Settings.save(CONFIG); });
+      panel.appendChild(settingsDetails);
 
-      // Export row
-      const exportSection = document.createElement("div");
-      exportSection.style.cssText = "display:flex; gap:6px; align-items:center; flex-wrap:wrap;";
-      exportSection.innerHTML = `
-          <span style="color:#666; font-size:11px;">Export:</span>
-          <button id="export-txt" style="padding:3px 10px; border-radius:4px; border:none; background:#333; color:#ccc; cursor:pointer; font-size:11px;">TXT</button>
-          <button id="export-json" style="padding:3px 10px; border-radius:4px; border:none; background:#333; color:#ccc; cursor:pointer; font-size:11px;">JSON</button>
-          <button id="export-chordpro" style="padding:3px 10px; border-radius:4px; border:none; background:#333; color:#ccc; cursor:pointer; font-size:11px;">ChordPro</button>
-      `;
-      container.appendChild(exportSection);
-      exportSection.querySelector('#export-txt')?.addEventListener('click', () => { if (currentAnalysis) FileExporter.export({...currentAnalysis, meta: getCurrentTrackMeta()}, 'txt'); });
-      exportSection.querySelector('#export-json')?.addEventListener('click', () => { if (currentAnalysis) FileExporter.export({...currentAnalysis, meta: getCurrentTrackMeta()}, 'json'); });
-      exportSection.querySelector('#export-chordpro')?.addEventListener('click', () => { if (currentAnalysis) FileExporter.export({...currentAnalysis, meta: getCurrentTrackMeta()}, 'chordpro'); });
+      settingsDetails.querySelector('#chrd-show-lyrics')?.addEventListener('change', e => { CONFIG.SHOW_LYRICS = e.target.checked; Settings.save(CONFIG); reRenderChords(); });
+      settingsDetails.querySelector('#chrd-show-fretboard')?.addEventListener('change', e => { CONFIG.SHOW_FRETBOARD_DIAGRAMS = e.target.checked; Settings.save(CONFIG); });
+      settingsDetails.querySelector('#export-txt')?.addEventListener('click', () => { if (currentAnalysis) FileExporter.export({...currentAnalysis, meta: getCurrentTrackMeta()}, 'txt'); });
+      settingsDetails.querySelector('#export-json')?.addEventListener('click', () => { if (currentAnalysis) FileExporter.export({...currentAnalysis, meta: getCurrentTrackMeta()}, 'json'); });
+      settingsDetails.querySelector('#export-chordpro')?.addEventListener('click', () => { if (currentAnalysis) FileExporter.export({...currentAnalysis, meta: getCurrentTrackMeta()}, 'chordpro'); });
 
       window._chorductionChordDisplay = chordDisplay;
-      window._chorductionContainer = container;
-      return container;
+      window._chorductionContainer = panel;
+      return panel;
   }
   function updateChordDisplay(chords, lyrics, key) {
-      const display = document.getElementById("chord-display") || window._chorductionChordDisplay;
+      const display = document.getElementById('chord-display') || window._chorductionChordDisplay;
       if (!display?.isConnected && !display?.parentNode) return;
-
       if (!chords?.length) {
-          if (display) display.innerHTML = `<div style="color:#888;">${getT('noData')}</div>`;
+          if (display) display.innerHTML = `<div style="color:#888;padding:20px;text-align:center;">${getT('noData')}</div>`;
           return;
       }
 
       ensureStyles();
-      const timeline = document.createElement("div");
-      timeline.className = "chorduction-timeline";
+      const timeline = document.createElement('div');
+      timeline.className = 'chorduction-timeline';
 
-      const lyricsLines = lyrics?.length ? lyrics : [];
-      const lines = buildChordLines(chords, lyricsLines);
+      // Build structured sections (uses audio analysis sections if available)
+      const audioSections = currentAnalysis?.sections || [];
+      const sections = buildStructuredSections(audioSections, chords, lyrics);
 
-      for (const line of lines) {
-          const lineEl = document.createElement("div");
-          lineEl.className = "chorduction-line";
+      for (const sec of sections) {
+          const secEl = document.createElement('div');
+          secEl.className = 'chorduction-section';
 
-          // Chord chips row
-          const chipsRow = document.createElement("div");
-          chipsRow.className = "chorduction-line-chords-container";
-          const lineDur = line.endMs - line.startMs;
+          // Section header (only if label is non-empty)
+          if (sec.label) {
+              const hdr = document.createElement('div');
+              hdr.className = 'chorduction-sec-hdr';
+              hdr.dataset.type = sec.type || 'song';
+              hdr.innerHTML = `
+                  <div class="chorduction-sec-hdr-line"></div>
+                  <span class="chorduction-sec-hdr-label">${escapeHtml(sec.label)}</span>
+                  <div class="chorduction-sec-hdr-line"></div>
+              `;
+              secEl.appendChild(hdr);
+          }
 
-          for (let ci = 0; ci < line.chords.length; ci++) {
-              const c = line.chords[ci];
-              const leftPct = lineDur > 0
-                  ? Math.min(((c.startMs - line.startMs) / lineDur) * 100, 94)
-                  : (ci / Math.max(line.chords.length, 1)) * 90;
+          // Lines within section
+          for (const line of sec.lines) {
+              const lineEl = document.createElement('div');
+              lineEl.className = 'chorduction-line';
+              lineEl.dataset.startMs = line.startMs;
+              lineEl.dataset.endMs = line.endMs;
 
-              const chip = document.createElement("div");
-              chip.className = "chorduction-chip";
-              chip.dataset.start = c.startMs;
-              chip.dataset.end = c.endMs;
-              chip.style.left = leftPct.toFixed(1) + "%";
-              const confPct = Math.round((c.confidence || 0) * 100);
-              chip.title = `${c.chord} · ${confPct}% · click to seek`;
+              // Chip row
+              const chipsRow = document.createElement('div');
+              chipsRow.className = 'chorduction-line-chips';
+              const lineDur = line.endMs - line.startMs;
 
-              const label = document.createElement("span");
-              label.className = "chip-chord";
-              label.textContent = c.chord === "N" ? "—" : c.chord;
-              chip.appendChild(label);
+              for (let ci = 0; ci < line.chords.length; ci++) {
+                  const c = line.chords[ci];
+                  const leftPct = lineDur > 0
+                      ? Math.min(((c.startMs - line.startMs) / lineDur) * 100, 93)
+                      : (ci / Math.max(line.chords.length, 1)) * 88;
 
-              // Fretboard diagram — hover-only tooltip
-              if (CONFIG.SHOW_FRETBOARD_DIAGRAMS) {
-                  const diagram = generateFretboardDiagram(c.chord);
-                  if (diagram) {
-                      const tip = document.createElement("div");
-                      tip.className = "chorduction-fretboard-tip";
-                      tip.appendChild(diagram);
-                      chip.appendChild(tip);
+                  const chip = document.createElement('div');
+                  chip.className = 'chorduction-chip';
+                  chip.dataset.start = c.startMs;
+                  chip.dataset.end = c.endMs;
+                  chip.style.left = leftPct.toFixed(1) + '%';
+
+                  // Chord function — use raw chord name for accurate functional analysis
+                  const rawChord = currentAnalysis?.rawChords?.find?.(r => r.startMs === c.startMs)?.chord || c.chord;
+                  const fn = getChordFunction(rawChord, currentAnalysis?.key || key);
+                  chip.dataset.fn = fn;
+
+                  const label = document.createElement('span');
+                  label.textContent = c.chord === 'N' ? '—' : c.chord;
+                  chip.appendChild(label);
+
+                  // JS-managed fretboard tooltip (bypass overflow clipping)
+                  const rawName = c.chord === 'N' ? null : c.chord;
+                  if (rawName) {
+                      chip.addEventListener('mouseenter', () => showFretTooltip(chip, rawName));
+                      chip.addEventListener('mouseleave', hideFretTooltip);
                   }
+
+                  chipsRow.appendChild(chip);
+              }
+              lineEl.appendChild(chipsRow);
+
+              // Lyric text
+              if (CONFIG.SHOW_LYRICS && line.text) {
+                  const lyricEl = document.createElement('div');
+                  lyricEl.className = 'chorduction-line-lyric';
+                  lyricEl.textContent = line.text;
+                  lineEl.appendChild(lyricEl);
               }
 
-              chipsRow.appendChild(chip);
+              secEl.appendChild(lineEl);
           }
-
-          lineEl.appendChild(chipsRow);
-
-          // Lyric text below chips
-          if (CONFIG.SHOW_LYRICS && line.text) {
-              const lyricEl = document.createElement("div");
-              lyricEl.className = "chorduction-line-lyric";
-              lyricEl.textContent = line.text;
-              lineEl.appendChild(lyricEl);
-          }
-
-          timeline.appendChild(lineEl);
-      }
-
-      // Key footer
-      if (key) {
-          const keyEl = document.createElement("div");
-          keyEl.style.cssText = "color:#666; font-size:11px; margin-top:10px; text-align:center;";
-          keyEl.textContent = `Key: ${key} · ${chords.length} chords`;
-          timeline.appendChild(keyEl);
+          timeline.appendChild(secEl);
       }
 
       if (display) {
-          display.innerHTML = "";
+          display.innerHTML = '';
           display.appendChild(timeline);
       }
 
-      // Start autoscroll tracking after DOM is ready
       startPlayheadTracking(chords);
   }
   // =============================
@@ -1688,7 +1764,10 @@
       chordPlayState.enabled = enabled;
       const badge = document.querySelector('[data-role="autoscroll-status"]');
       const banner = document.querySelector('[data-role="autoscroll-banner"]');
-      if (badge) badge.textContent = `Autoscroll: ${enabled ? 'On' : 'Paused'}`;
+      if (badge) {
+          badge.textContent = `Autoscroll: ${enabled ? 'On' : 'Paused'}`;
+          badge.classList.toggle('on', enabled);
+      }
       if (banner) banner.classList.toggle('active', !enabled);
   }
 
@@ -1700,15 +1779,27 @@
           const idx = binarySearchChords(ms);
           if (idx === state.activeIdx) return;
           state.chips = state.chips || document.querySelectorAll('.chorduction-chip');
+
+          // Remove old active chip
           if (state.activeIdx >= 0) state.chips[state.activeIdx]?.classList.remove('now');
+
+          // Remove old active line
+          document.querySelector('.chorduction-line.now-line')?.classList.remove('now-line');
+
           state.activeIdx = idx;
           if (idx >= 0) {
               const el = state.chips[idx];
               el?.classList.add('now');
+
+              // Highlight the parent lyric line
+              const lineEl = el?.closest('.chorduction-line');
+              if (lineEl) lineEl.classList.add('now-line');
+
               if (state.enabled) {
                   state.programmatic = true;
-                  el?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
-                  setTimeout(() => { state.programmatic = false; }, 350);
+                  // Scroll the line into view (smoother than scrolling individual chip)
+                  (lineEl || el)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                  setTimeout(() => { state.programmatic = false; }, 400);
               }
           }
       });
@@ -1786,6 +1877,146 @@
           lines.push(cur);
       }
       return lines;
+  }
+
+  // =============================
+  // Chord Function + Section Helpers
+  // =============================
+
+  function getChordFunction(chordName, keyName) {
+      if (!chordName || chordName === 'N' || chordName === '—') return 'neutral';
+      const notes = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+      const flatToSharp = {'Db':'C#','Eb':'D#','Fb':'E','Gb':'F#','Ab':'G#','Bb':'A#','Cb':'B'};
+      const keyRoot = ((keyName || 'C').replace(/m$/, '')).replace(/[♭b]/g, 'b').replace(/[♯#]/g, '#');
+      const normalKeyRoot = flatToSharp[keyRoot] || keyRoot;
+      const keyIdx = notes.indexOf(normalKeyRoot);
+      if (keyIdx === -1) return 'neutral';
+      const chordMatch = chordName.match(/^([A-G][#b♭♯]?)/);
+      if (!chordMatch) return 'neutral';
+      let cr = chordMatch[1].replace(/[♭]/g,'b').replace(/[♯]/g,'#');
+      cr = flatToSharp[cr] || cr;
+      const chordIdx = notes.indexOf(cr);
+      if (chordIdx === -1) return 'neutral';
+      const degree = (chordIdx - keyIdx + 12) % 12;
+      if (degree === 0) return 'tonic';
+      if (degree === 5) return 'subdominant';
+      if (degree === 7) return 'dominant';
+      if (degree === 2 || degree === 4 || degree === 9) return 'secondary';
+      return 'neutral';
+  }
+
+  function labelSections(sections) {
+      if (!sections?.length) return [];
+      const n = sections.length;
+      const avgLoud = sections.reduce((s, x) => s + x.loudness, 0) / n;
+      let verse = 0, chorus = 0, bridge = 0;
+      return sections.map((sec, i) => {
+          const startMs = Math.round(sec.start * 1000);
+          const endMs = Math.round((sec.start + sec.duration) * 1000);
+          const dur = sec.duration;
+          if (i === 0 && dur < 25) return { startMs, endMs, label: 'Intro', type: 'intro' };
+          if (i === n - 1 && dur < 25) return { startMs, endMs, label: 'Outro', type: 'outro' };
+          if (dur < 9 && i > 0 && i < n - 1) {
+              bridge++;
+              return { startMs, endMs, label: bridge > 1 ? `Bridge ${bridge}` : 'Bridge', type: 'bridge' };
+          }
+          if (sec.loudness > avgLoud + 1.5) {
+              chorus++;
+              return { startMs, endMs, label: chorus > 1 ? `Chorus ${chorus}` : 'Chorus', type: 'chorus' };
+          }
+          verse++;
+          return { startMs, endMs, label: verse > 1 ? `Verse ${verse}` : 'Verse', type: 'verse' };
+      });
+  }
+
+  function buildStructuredSections(audioSections, chords, lyrics) {
+      const labeled = labelSections(audioSections);
+      if (!labeled.length) {
+          return [{ label: '', type: 'song', startMs: 0, endMs: Infinity, lines: buildChordLines(chords, lyrics) }];
+      }
+      const result = [];
+      for (const sec of labeled) {
+          const secChords = chords.filter(c => c.startMs >= sec.startMs && c.startMs < sec.endMs);
+          if (!secChords.length) continue;
+          const secLyrics = lyrics.filter(l => l.startMs >= sec.startMs && l.startMs < sec.endMs);
+          result.push({ ...sec, lines: buildChordLines(secChords, secLyrics) });
+      }
+      // Catch any chords before the first labeled section (e.g. no intro detected)
+      if (labeled.length && chords.length) {
+          const firstSectionMs = labeled[0].startMs;
+          const preChords = chords.filter(c => c.startMs < firstSectionMs);
+          if (preChords.length) {
+              const preLines = buildChordLines(preChords, lyrics.filter(l => l.startMs < firstSectionMs));
+              result.unshift({ label: 'Intro', type: 'intro', startMs: 0, endMs: firstSectionMs, lines: preLines });
+          }
+      }
+      return result.length ? result : [{ label: '', type: 'song', startMs: 0, endMs: Infinity, lines: buildChordLines(chords, lyrics) }];
+  }
+
+  // =============================
+  // Fretboard Tooltip (JS-managed, fixed position)
+  // =============================
+  let _fretTooltipEl = null;
+
+  function getFretTooltip() {
+      if (!_fretTooltipEl) {
+          _fretTooltipEl = document.createElement('div');
+          _fretTooltipEl.id = 'chorduction-fret-tooltip';
+          _fretTooltipEl.style.cssText = [
+              'position:fixed', 'z-index:999999', 'display:none',
+              'background:#181818', 'border:1px solid #444', 'border-radius:8px',
+              'padding:8px', 'box-shadow:0 6px 20px rgba(0,0,0,0.85)',
+              'pointer-events:none', 'text-align:center'
+          ].join(';');
+          document.body.appendChild(_fretTooltipEl);
+      }
+      return _fretTooltipEl;
+  }
+
+  function showFretTooltip(chipEl, chordName) {
+      if (!CONFIG.SHOW_FRETBOARD_DIAGRAMS) return;
+      const diagram = generateFretboardDiagram(chordName);
+      if (!diagram) return;
+      const tip = getFretTooltip();
+      tip.innerHTML = '';
+      const lbl = document.createElement('div');
+      lbl.style.cssText = 'font-size:13px; font-weight:700; color:#fff; margin-bottom:4px; font-family:ui-monospace,monospace;';
+      lbl.textContent = chordName;
+      tip.appendChild(lbl);
+      tip.appendChild(diagram);
+      tip.style.display = 'block';
+      const r = chipEl.getBoundingClientRect();
+      const tw = tip.offsetWidth || 140;
+      let left = r.left + r.width / 2 - tw / 2;
+      left = Math.max(8, Math.min(left, window.innerWidth - tw - 8));
+      tip.style.left = left + 'px';
+      tip.style.top = (r.bottom + 6) + 'px';
+  }
+
+  function hideFretTooltip() {
+      const tip = document.getElementById('chorduction-fret-tooltip');
+      if (tip) tip.style.display = 'none';
+  }
+
+  // =============================
+  // Re-Render on Notation / Transpose Change
+  // =============================
+  function reRenderChords() {
+      if (!currentAnalysis?.rawChords?.length) return;
+      const transposed = currentAnalysis.rawChords.map(c => ({
+          ...c, chord: Transposer.transpose(c.chord, CONFIG.TRANSPOSE_SEMITONES)
+      }));
+      const displayed = CONFIG.CHORD_NOTATION !== 'standard'
+          ? transposed.map(c => ({
+              ...c, chord: ChordNotation.convert(c.chord, CONFIG.CHORD_NOTATION, currentAnalysis.key)
+          }))
+          : transposed;
+      const synced = syncChordsToLyrics(displayed, currentAnalysis.lyrics);
+      currentAnalysis.chords = synced;
+      updateChordDisplay(synced, currentAnalysis.lyrics, currentAnalysis.key);
+      // Update transpose display label in panel if open
+      const tv = document.getElementById('transpose-value');
+      if (tv) tv.textContent = Transposer.getDisplay(CONFIG.TRANSPOSE_SEMITONES) || '0';
   }
 
   // =============================
@@ -1867,19 +2098,39 @@
           
           // Get lyrics
           const lyricsResult = await fetchLyrics(meta.artist, meta.title, meta.duration, trackId);
-          
-          // Process and detect chords
-          const result = detector.processAnalysis(analysis, lyricsResult.lines);
-          
-          // Sync chords to lyrics
-          const syncedChords = syncChordsToLyrics(result.chords, lyricsResult.lines);
-          
-          currentAnalysis = { chords: syncedChords, key: result.key, lyrics: lyricsResult.lines };
-          
+
+          // Process chord detection (returns rawChords in standard notation, no transposition)
+          const result = detector.processAnalysis(analysis);
+
+          // Apply transposition
+          const transposedChords = result.rawChords.map(c => ({
+              ...c, chord: Transposer.transpose(c.chord, CONFIG.TRANSPOSE_SEMITONES)
+          }));
+
+          // Apply notation conversion
+          const displayChords = CONFIG.CHORD_NOTATION !== 'standard'
+              ? transposedChords.map(c => ({
+                  ...c, chord: ChordNotation.convert(c.chord, CONFIG.CHORD_NOTATION, result.key)
+              }))
+              : transposedChords;
+
+          // Sync both display and raw chords to lyrics
+          const syncedChords = syncChordsToLyrics(displayChords, lyricsResult.lines);
+          const rawSynced = syncChordsToLyrics(result.rawChords, lyricsResult.lines);
+
+          currentAnalysis = {
+              chords: syncedChords,
+              rawChords: rawSynced,
+              key: result.key,
+              lyrics: lyricsResult.lines,
+              sections: analysis.sections || [],
+              tempo: result.tempo
+          };
+
           // Update display
           updateChordDisplay(syncedChords, lyricsResult.lines, result.key);
-          
-          log.info(`Analysis complete: ${syncedChords.length} chords detected in key ${result.key}`);
+
+          log.info(`Analysis complete: ${syncedChords.length} chords in key ${result.key} @ ${Math.round(result.tempo)} BPM`);
   
       } catch (e) {
           log.error("Analysis failed:", e);
