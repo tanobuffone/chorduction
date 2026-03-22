@@ -1,6 +1,6 @@
 # Chorduction — Roadmap
 
-**Last Updated:** 2026-03-20
+**Last Updated:** 2026-03-21
 
 ---
 
@@ -12,16 +12,22 @@
 
 ---
 
-## Current: v6.0.0 ✅
+## Current: v6.4.0 ✅
 
-All v6.0.0 work is complete. See [CHANGELOG.md](../CHANGELOG.md) for details.
+All v6.x work to date is complete. See [CHANGELOG.md](../CHANGELOG.md) for full history.
+
+**v6.x releases shipped:**
+- v6.0.0 — unified monolith, SmartCache, FileExporter, CI/CD
+- v6.1.0 — 429 detection fix, stale DOM fix, double-init fix, rate-limit countdown
+- v6.3.0 — fretboard hover for all chords, chord consolidation, prev/next as song nav, re-analyze button
+- v6.4.0 — bar-level harmonic detection, correct lyric sync direction, solo section detection, measure-aligned display
 
 ---
 
-## v6.1.0 — Stability Release
+## v6.5.0 — Stability + UX Polish
 
 **Target:** April 2026
-**Scope:** Bug fixes and UX polish only. No new features.
+**Scope:** Bug fixes and UX polish. No new features.
 
 ### Bug Fixes
 - [ ] DOM selector fragility — replace brittle CSS class selectors with attribute-based and structural queries; add a `MutationObserver` to detect when the player controls re-render
@@ -31,8 +37,9 @@ All v6.0.0 work is complete. See [CHANGELOG.md](../CHANGELOG.md) for details.
 ### UX Improvements
 - [ ] Sidebar button as injection fallback when player controls injection fails
 - [ ] User-facing error messages with specific, actionable text (e.g., "Spotify API rate limited — retry in 30s" instead of generic error)
-- [ ] Loading state indicator during audio analysis fetch
 - [ ] Fretboard diagrams for dominant 7th chords (C7, G7, D7, A7, E7, B7, F7)
+- [ ] Controls bar grouping — visually group transport (⏮▶⏭🔄) separately from musical settings (notation/level/transpose)
+- [ ] Time signature display in header (3/4, 6/8, etc.) using `analysis.track.time_signature`
 
 ### Developer Experience
 - [ ] Stress test suite — rapid track changes, network failure simulation
