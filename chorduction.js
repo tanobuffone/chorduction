@@ -1,6 +1,6 @@
 // chorduction.js
 // Chorduction — Spicetify extension for chord analysis + per-chord lyrics
-// Version: 6.4.0 - Bar-level harmonic detection, correct lyric sync, solo section detection, measure-aligned display
+// Version: 6.5.0 - Smart autoscroll centering, track-change detection fix, chord levels fix, lyric dedup in instrumentals, UI overhaul
 
 (function () {
   "use strict";
@@ -333,98 +333,282 @@
       const style = document.createElement('style');
       style.id = 'chorduction-style';
       style.textContent = `
+          /* =========================================================
+             CHORDUCTION — UI Design System v6.5.0
+             Palette: #0a0a0a bg · #1db954 green · #4a9eff blue
+                      #ff8c1a amber · #c084fc purple · #ff5b5b red
+             Typography: system-ui body · ui-monospace chords
+          ========================================================= */
+
           /* === Panel Shell === */
-          .chorduction-panel { overflow: auto; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+          .chorduction-panel {
+              overflow-y: auto; overflow-x: hidden;
+              padding: 0; box-sizing: border-box;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif;
+              scrollbar-width: thin;
+              scrollbar-color: #2a2a2a transparent;
+          }
+          .chorduction-panel::-webkit-scrollbar { width: 4px; }
+          .chorduction-panel::-webkit-scrollbar-track { background: transparent; }
+          .chorduction-panel::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 4px; }
 
           /* === Header === */
-          .chorduction-hdr { padding: 14px 16px 10px; border-bottom: 1px solid #1e1e1e; background: #0a0a0a; }
-          .chorduction-hdr-title { font-size: 16px; font-weight: 700; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-          .chorduction-hdr-artist { font-size: 12px; color: #888; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-          .chorduction-hdr-pills { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; align-items: center; }
-          .chorduction-pill { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; border: 1px solid; }
-          .chorduction-pill-key { color: #1db954; border-color: #1db95455; background: #0d281820; }
-          .chorduction-pill-bpm { color: #aaa; border-color: #333; background: #1a1a1a; }
-          .chorduction-pill-mode { color: #4a9eff; border-color: #4a9eff44; background: #0a1a3020; }
+          .chorduction-hdr {
+              padding: 16px 16px 12px;
+              background: linear-gradient(180deg, #0d0d0d 0%, #080808 100%);
+              border-bottom: 1px solid #1a1a1a;
+              position: relative;
+          }
+          .chorduction-hdr::after {
+              content: ''; position: absolute; bottom: 0; left: 16px; right: 16px;
+              height: 1px; background: linear-gradient(90deg, transparent, #1db95428 30%, #1db95428 70%, transparent);
+          }
+          .chorduction-hdr-title {
+              font-size: 15px; font-weight: 700; color: #f0f0f0;
+              overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+              letter-spacing: -0.01em;
+          }
+          .chorduction-hdr-artist {
+              font-size: 12px; color: #666; margin-top: 2px;
+              overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+          }
+          .chorduction-hdr-pills {
+              display: flex; gap: 5px; margin-top: 10px; flex-wrap: wrap; align-items: center;
+          }
+          .chorduction-pill {
+              display: inline-flex; align-items: center; gap: 4px;
+              padding: 3px 9px; border-radius: 99px;
+              font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+              border: 1px solid; text-transform: uppercase;
+              font-family: ui-monospace, monospace;
+          }
+          .chorduction-pill-key   { color: #1db954; border-color: #1db95450; background: #1db95410; }
+          .chorduction-pill-bpm   { color: #999; border-color: #2a2a2a; background: #111; }
+          .chorduction-pill-mode  { color: #4a9eff; border-color: #4a9eff40; background: #4a9eff0e; }
 
-          /* === Controls Bar === */
-          .chorduction-ctrl-bar { display: flex; gap: 6px; align-items: center; padding: 8px 12px; background: #111; border-bottom: 1px solid #1e1e1e; flex-wrap: wrap; }
-          .chorduction-ctrl-btn { background: transparent; border: none; color: #888; cursor: pointer; padding: 5px 9px; border-radius: 50%; font-size: 14px; transition: all 0.15s; }
-          .chorduction-ctrl-btn:hover { color: #fff; background: #2a2a2a; }
+          /* === Controls Bar — two groups === */
+          .chorduction-ctrl-bar {
+              display: flex; align-items: center; padding: 6px 12px; gap: 0;
+              background: #090909; border-bottom: 1px solid #181818;
+              flex-wrap: wrap; row-gap: 4px;
+          }
+          /* Transport group: ⏮ ▶ ⏭ 🔄 */
+          .chorduction-ctrl-transport {
+              display: flex; align-items: center; gap: 2px;
+              padding-right: 10px; margin-right: 10px;
+              border-right: 1px solid #222;
+          }
+          /* Settings group: autoscroll · transpose · notation · level */
+          .chorduction-ctrl-settings {
+              display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+          }
+          .chorduction-ctrl-btn {
+              background: transparent; border: none; color: #666; cursor: pointer;
+              padding: 5px 7px; border-radius: 6px; font-size: 14px;
+              transition: color 0.12s, background 0.12s;
+              line-height: 1;
+          }
+          .chorduction-ctrl-btn:hover { color: #e0e0e0; background: #1e1e1e; }
           .chorduction-ctrl-btn.active-play { color: #1db954; }
-          .chorduction-autoscroll-badge { font-size: 11px; color: #888; padding: 2px 8px; border: 1px solid #333; border-radius: 99px; cursor: pointer; white-space: nowrap; transition: all 0.15s; }
-          .chorduction-autoscroll-badge:hover { border-color: #555; color: #ccc; }
-          .chorduction-autoscroll-badge.on { color: #1db954; border-color: #1db95455; }
-          .chorduction-transpose-group { display: flex; align-items: center; gap: 3px; border: 1px solid #333; border-radius: 6px; overflow: hidden; }
-          .chorduction-transpose-group button { background: #1e1e1e; border: none; color: #ccc; cursor: pointer; padding: 4px 10px; font-size: 13px; font-weight: 700; transition: background 0.1s; }
-          .chorduction-transpose-group button:hover { background: #2d2d2d; }
-          .chorduction-transpose-group span { min-width: 34px; text-align: center; font-size: 12px; font-family: ui-monospace, monospace; color: #fff; padding: 0 4px; }
-          .chorduction-notation-select, .chorduction-level-select { background: #1e1e1e; border: 1px solid #333; border-radius: 6px; color: #ccc; font-size: 11px; padding: 4px 8px; cursor: pointer; }
+          .chorduction-ctrl-btn[title*="Re-analyze"]:hover { color: #4a9eff; }
+
+          /* Autoscroll toggle */
+          .chorduction-autoscroll-badge {
+              font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+              color: #555; padding: 3px 9px; border: 1px solid #222; border-radius: 99px;
+              cursor: pointer; white-space: nowrap; transition: all 0.15s;
+              font-family: ui-monospace, monospace;
+          }
+          .chorduction-autoscroll-badge:hover { border-color: #444; color: #aaa; }
+          .chorduction-autoscroll-badge.on { color: #1db954; border-color: #1db95448; background: #1db9540a; }
+
+          /* Transpose */
+          .chorduction-transpose-group {
+              display: flex; align-items: center;
+              border: 1px solid #222; border-radius: 6px; overflow: hidden;
+              background: #0e0e0e;
+          }
+          .chorduction-transpose-group button {
+              background: transparent; border: none; color: #888;
+              cursor: pointer; padding: 4px 9px; font-size: 14px; font-weight: 700;
+              transition: color 0.1s, background 0.1s; line-height: 1;
+          }
+          .chorduction-transpose-group button:hover { background: #1a1a1a; color: #fff; }
+          .chorduction-transpose-group span {
+              min-width: 30px; text-align: center; font-size: 11px;
+              font-family: ui-monospace, monospace; color: #ccc;
+              border-left: 1px solid #1e1e1e; border-right: 1px solid #1e1e1e;
+              padding: 4px 4px;
+          }
+
+          /* Selects */
+          .chorduction-notation-select, .chorduction-level-select {
+              background: #0e0e0e; border: 1px solid #222; border-radius: 6px;
+              color: #888; font-size: 10px; font-weight: 600; letter-spacing: 0.03em;
+              padding: 4px 7px; cursor: pointer; text-transform: uppercase;
+              font-family: ui-monospace, monospace; appearance: none;
+              -webkit-appearance: none;
+          }
+          .chorduction-notation-select:hover, .chorduction-level-select:hover { border-color: #333; color: #ccc; }
 
           /* === Autoscroll Paused Banner === */
-          .chorduction-paused-banner { display: none; text-align: center; padding: 5px 12px; font-size: 11px; color: #888; background: #0d0d0d; border-bottom: 1px solid #1e1e1e; }
-          .chorduction-paused-banner.active { display: flex; align-items: center; justify-content: center; gap: 8px; }
-          .chorduction-resume-btn { background: #1e1e1e; border: 1px solid #444; border-radius: 4px; color: #ccc; font-size: 11px; padding: 2px 10px; cursor: pointer; }
-          .chorduction-resume-btn:hover { border-color: #1db954; color: #1db954; }
+          .chorduction-paused-banner {
+              display: none; text-align: center; padding: 5px 16px;
+              font-size: 11px; color: #666; background: #060606;
+              border-bottom: 1px solid #181818; gap: 10px;
+          }
+          .chorduction-paused-banner.active { display: flex; align-items: center; justify-content: center; }
+          .chorduction-resume-btn {
+              background: transparent; border: 1px solid #333; border-radius: 99px;
+              color: #888; font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+              padding: 2px 12px; cursor: pointer; text-transform: uppercase;
+              transition: all 0.15s;
+          }
+          .chorduction-resume-btn:hover { border-color: #1db954; color: #1db954; background: #1db9540a; }
 
           /* === Timeline === */
-          .chorduction-timeline { padding: 0 12px 20px; }
+          .chorduction-timeline { padding: 4px 14px 32px; }
 
           /* === Section Headers === */
-          .chorduction-section { margin-top: 4px; }
-          .chorduction-sec-hdr { display: flex; align-items: center; gap: 8px; padding: 14px 0 6px; }
-          .chorduction-sec-hdr-line { flex: 1; height: 1px; background: #222; }
-          .chorduction-sec-hdr-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #555; white-space: nowrap; }
-          .chorduction-sec-hdr[data-type="chorus"] .chorduction-sec-hdr-label { color: #1db954; }
-          .chorduction-sec-hdr[data-type="chorus"] .chorduction-sec-hdr-line { background: #1db95430; }
-          .chorduction-sec-hdr[data-type="verse"] .chorduction-sec-hdr-label { color: #4a9eff; }
-          .chorduction-sec-hdr[data-type="verse"] .chorduction-sec-hdr-line { background: #4a9eff28; }
-          .chorduction-sec-hdr[data-type="bridge"] .chorduction-sec-hdr-label { color: #ff8c1a; }
-          .chorduction-sec-hdr[data-type="bridge"] .chorduction-sec-hdr-line { background: #ff8c1a28; }
+          .chorduction-section { margin-top: 6px; }
+          .chorduction-sec-hdr {
+              display: flex; align-items: center; gap: 10px;
+              padding: 18px 0 8px; position: relative;
+          }
+          .chorduction-sec-hdr-line { flex: 1; height: 1px; }
+          .chorduction-sec-hdr-label {
+              font-size: 9px; font-weight: 800; text-transform: uppercase;
+              letter-spacing: 0.18em; white-space: nowrap;
+              font-family: ui-monospace, monospace;
+              padding: 3px 10px; border-radius: 99px; border: 1px solid;
+          }
+          /* Section color tokens */
+          .chorduction-sec-hdr[data-type="chorus"] .chorduction-sec-hdr-label  { color: #1db954; border-color: #1db95448; background: #1db9540d; }
+          .chorduction-sec-hdr[data-type="chorus"] .chorduction-sec-hdr-line   { background: linear-gradient(90deg, transparent, #1db95430, transparent); }
+          .chorduction-sec-hdr[data-type="verse"] .chorduction-sec-hdr-label   { color: #4a9eff; border-color: #4a9eff44; background: #4a9eff0d; }
+          .chorduction-sec-hdr[data-type="verse"] .chorduction-sec-hdr-line    { background: linear-gradient(90deg, transparent, #4a9eff28, transparent); }
+          .chorduction-sec-hdr[data-type="bridge"] .chorduction-sec-hdr-label  { color: #ff8c1a; border-color: #ff8c1a44; background: #ff8c1a0d; }
+          .chorduction-sec-hdr[data-type="bridge"] .chorduction-sec-hdr-line   { background: linear-gradient(90deg, transparent, #ff8c1a28, transparent); }
+          .chorduction-sec-hdr[data-type="solo"] .chorduction-sec-hdr-label    { color: #c084fc; border-color: #c084fc44; background: #c084fc0d; }
+          .chorduction-sec-hdr[data-type="solo"] .chorduction-sec-hdr-line     { background: linear-gradient(90deg, transparent, #c084fc28, transparent); }
           .chorduction-sec-hdr[data-type="intro"] .chorduction-sec-hdr-label,
-          .chorduction-sec-hdr[data-type="outro"] .chorduction-sec-hdr-label { color: #666; }
-          .chorduction-sec-hdr[data-type="solo"] .chorduction-sec-hdr-label { color: #c084fc; }
-          .chorduction-sec-hdr[data-type="solo"] .chorduction-sec-hdr-line { background: #c084fc28; }
+          .chorduction-sec-hdr[data-type="outro"] .chorduction-sec-hdr-label   { color: #555; border-color: #2a2a2a; background: #111; }
+          .chorduction-sec-hdr[data-type="intro"] .chorduction-sec-hdr-line,
+          .chorduction-sec-hdr[data-type="outro"] .chorduction-sec-hdr-line    { background: #1e1e1e; }
 
           /* === Lyric Lines === */
-          .chorduction-line { margin: 8px 0; padding: 4px 6px; border-radius: 5px; transition: background 0.25s; }
-          .chorduction-line.now-line { background: rgba(29,185,84,0.07); }
-          .chorduction-line-chips { position: relative; height: 28px; margin-bottom: 5px; }
-          .chorduction-line-lyric { font-size: 13px; line-height: 1.45; color: #888; transition: color 0.25s; padding-left: 2px; }
-          .chorduction-line.now-line .chorduction-line-lyric { color: #ddd; font-weight: 500; }
+          .chorduction-line {
+              margin: 6px 0; padding: 6px 8px 5px;
+              border-radius: 6px; border-left: 2px solid transparent;
+              transition: background 0.2s, border-color 0.2s;
+          }
+          .chorduction-line.now-line {
+              background: rgba(29,185,84,0.055);
+              border-left-color: #1db95455;
+          }
+          .chorduction-line-chips {
+              position: relative; height: 30px; margin-bottom: 6px;
+          }
+          .chorduction-line-lyric {
+              font-size: 13px; line-height: 1.5; color: #505050;
+              transition: color 0.2s; padding-left: 1px;
+              letter-spacing: 0.01em;
+          }
+          .chorduction-line.now-line .chorduction-line-lyric {
+              color: #c8c8c8; font-weight: 500;
+          }
 
           /* === Chord Chips === */
           .chorduction-chip {
               display: inline-flex; align-items: center; justify-content: center;
-              padding: 2px 8px; border-radius: 4px;
-              border: 1px solid #2e2e2e; background: #141414;
-              color: #bbb; cursor: pointer; font-size: 12px; font-weight: 700;
+              padding: 3px 9px; border-radius: 5px;
+              border: 1px solid #222; background: #0e0e0e;
+              color: #999; cursor: pointer; font-size: 12px; font-weight: 700;
               position: absolute; top: 0; white-space: nowrap;
-              transition: background 0.1s, border-color 0.1s, transform 0.12s, box-shadow 0.15s, color 0.1s;
-              user-select: none; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+              transition: background 0.12s, border-color 0.12s, transform 0.12s,
+                          box-shadow 0.15s, color 0.12s, opacity 0.12s;
+              user-select: none;
+              font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+              letter-spacing: 0.02em;
           }
-          .chorduction-chip:hover { background: #252525; transform: translateY(-1px); z-index: 2; border-color: #444; }
+          .chorduction-chip:hover {
+              background: #1a1a1a; transform: translateY(-2px);
+              z-index: 2; border-color: #383838; color: #ddd;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+          }
 
-          /* Chord function tints */
-          .chorduction-chip[data-fn="tonic"]       { border-color: #1db95440; color: #8ecfa8; }
-          .chorduction-chip[data-fn="subdominant"] { border-color: #4a9eff38; color: #88b8f0; }
-          .chorduction-chip[data-fn="dominant"]    { border-color: #ff8c1a38; color: #e8a86a; }
-          .chorduction-chip[data-fn="secondary"]   { border-color: #9b59b630; color: #c4a0e0; }
+          /* Chord function tints — resting state */
+          .chorduction-chip[data-fn="tonic"]       { border-color: #1db95432; color: #7bc89a; background: #0a1a10; }
+          .chorduction-chip[data-fn="subdominant"] { border-color: #4a9eff2e; color: #7aaedf; background: #080f1e; }
+          .chorduction-chip[data-fn="dominant"]    { border-color: #ff8c1a2e; color: #d89460; background: #150a00; }
+          .chorduction-chip[data-fn="secondary"]   { border-color: #9b59b628; color: #b08ad0; background: #100818; }
+          .chorduction-chip[data-fn="neutral"]     { border-color: #282828; color: #888; }
 
-          /* Active chip — the one playing NOW */
+          /* Active chip — currently playing */
           .chorduction-chip.now {
-              border-width: 2px !important; transform: translateY(-2px) scale(1.08) !important;
-              z-index: 4; font-size: 13px;
+              border-width: 1.5px !important;
+              transform: translateY(-3px) scale(1.10) !important;
+              z-index: 4; font-size: 13px; font-weight: 800;
+              letter-spacing: 0.03em;
           }
-          .chorduction-chip[data-fn="tonic"].now       { border-color: #1db954; color: #1db954; background: #0a2010; box-shadow: 0 0 10px #1db95440; }
-          .chorduction-chip[data-fn="subdominant"].now { border-color: #4a9eff; color: #4a9eff; background: #061530; box-shadow: 0 0 10px #4a9eff40; }
-          .chorduction-chip[data-fn="dominant"].now    { border-color: #ff8c1a; color: #ff8c1a; background: #1e0e00; box-shadow: 0 0 10px #ff8c1a40; }
-          .chorduction-chip[data-fn="secondary"].now   { border-color: #9b59b6; color: #9b59b6; background: #150a1e; box-shadow: 0 0 10px #9b59b640; }
+          .chorduction-chip[data-fn="tonic"].now {
+              border-color: #1db954; color: #23e868; background: #071a0d;
+              box-shadow: 0 0 0 2px #1db95420, 0 6px 18px #1db95430;
+          }
+          .chorduction-chip[data-fn="subdominant"].now {
+              border-color: #4a9eff; color: #5cb0ff; background: #050e1c;
+              box-shadow: 0 0 0 2px #4a9eff20, 0 6px 18px #4a9eff30;
+          }
+          .chorduction-chip[data-fn="dominant"].now {
+              border-color: #ff8c1a; color: #ffaa50; background: #120800;
+              box-shadow: 0 0 0 2px #ff8c1a20, 0 6px 18px #ff8c1a30;
+          }
+          .chorduction-chip[data-fn="secondary"].now {
+              border-color: #a855f7; color: #c084fc; background: #0d0618;
+              box-shadow: 0 0 0 2px #a855f720, 0 6px 18px #a855f730;
+          }
           .chorduction-chip[data-fn="neutral"].now,
-          .chorduction-chip:not([data-fn]).now         { border-color: #e0e0e0; color: #fff; background: #1a1a1a; box-shadow: 0 0 8px rgba(255,255,255,0.2); }
+          .chorduction-chip:not([data-fn]).now {
+              border-color: #ccc; color: #fff; background: #141414;
+              box-shadow: 0 0 0 2px #ffffff18, 0 6px 16px rgba(255,255,255,0.12);
+          }
+
+          /* === Settings & Export collapsible === */
+          .chorduction-settings-section {
+              border-top: 1px solid #141414;
+          }
+          .chorduction-settings-section summary {
+              cursor: pointer; padding: 8px 16px; font-size: 10px;
+              color: #444; list-style: none; display: flex; align-items: center; gap: 6px;
+              text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700;
+              transition: color 0.15s; user-select: none;
+              font-family: ui-monospace, monospace;
+          }
+          .chorduction-settings-section summary:hover { color: #666; }
+          .chorduction-settings-section summary::before { content: '⚙'; font-size: 11px; }
 
           /* === Spinner === */
           @keyframes chorduction-spin { to { transform: rotate(360deg); } }
-          .chorduction-spinner { width: 16px; height: 16px; border: 2px solid #2a2a2a; border-top-color: #1db954; border-radius: 50%; animation: chorduction-spin 0.85s linear infinite; display: inline-block; vertical-align: middle; margin-right: 8px; }
+          .chorduction-spinner {
+              width: 14px; height: 14px;
+              border: 1.5px solid #1e1e1e; border-top-color: #1db954;
+              border-radius: 50%; animation: chorduction-spin 0.75s linear infinite;
+              display: inline-block; vertical-align: middle; margin-right: 8px;
+          }
+
+          /* === Waveform-style progress indicator on now-line === */
+          @keyframes chorduction-pulse {
+              0%, 100% { opacity: 0.5; }
+              50%       { opacity: 1; }
+          }
+          .chorduction-line.now-line::before {
+              content: ''; display: inline-block;
+              width: 3px; height: 3px; border-radius: 50%;
+              background: #1db954; margin-right: 4px;
+              animation: chorduction-pulse 1.2s ease-in-out infinite;
+              vertical-align: middle; position: absolute; left: 2px; top: 50%;
+              margin-top: -1.5px;
+          }
       `;
       document.head.appendChild(style);
       extensionCleanup.addElement(style);
@@ -1511,6 +1695,8 @@
           if (newUri === openedTrackUri) return;
           log.info("Song changed while panel open — refreshing panel");
           currentAnalysis = null;
+          lastAttemptedTrackId = null;
+          lastAnalysisStartMs = 0;
           showMainPanel();
       });
   }
@@ -1631,7 +1817,18 @@
       });
       levelSel.onchange = (e) => { CONFIG.CHORD_SIMPLIFICATION = parseInt(e.target.value); Settings.save(CONFIG); reRenderChords(); };
 
-      [prevBtn, playBtn, nextBtn, reanalyzeBtn, asBadge, transposeGrp, notationSel, levelSel].forEach(el => ctrlBar.appendChild(el));
+      // Group: transport (⏮ ▶ ⏭ 🔄)
+      const transportGrp = document.createElement('div');
+      transportGrp.className = 'chorduction-ctrl-transport';
+      [prevBtn, playBtn, nextBtn, reanalyzeBtn].forEach(el => transportGrp.appendChild(el));
+
+      // Group: settings (autoscroll · transpose · notation · level)
+      const settingsGrp = document.createElement('div');
+      settingsGrp.className = 'chorduction-ctrl-settings';
+      [asBadge, transposeGrp, notationSel, levelSel].forEach(el => settingsGrp.appendChild(el));
+
+      ctrlBar.appendChild(transportGrp);
+      ctrlBar.appendChild(settingsGrp);
       panel.appendChild(ctrlBar);
 
       // === Autoscroll paused banner ===
@@ -1662,21 +1859,21 @@
 
       // === Settings (collapsed) + Export ===
       const settingsDetails = document.createElement('details');
-      settingsDetails.style.cssText = 'padding: 0 12px 12px;';
+      settingsDetails.className = 'chorduction-settings-section';
       settingsDetails.innerHTML = `
-          <summary style="cursor:pointer;padding:6px 4px;font-size:11px;color:#666;list-style:none;">⚙ Settings &amp; Export</summary>
-          <div style="padding:10px 4px 0;display:flex;flex-direction:column;gap:8px;">
-              <label style="font-size:12px;color:#aaa;display:flex;align-items:center;gap:8px;">
+          <summary>Settings &amp; Export</summary>
+          <div style="padding:10px 16px 14px;display:flex;flex-direction:column;gap:10px;">
+              <label style="font-size:11px;color:#666;display:flex;align-items:center;gap:8px;cursor:pointer;">
                   <input type="checkbox" id="chrd-show-lyrics" ${CONFIG.SHOW_LYRICS ? 'checked' : ''}> Show lyrics
               </label>
-              <label style="font-size:12px;color:#aaa;display:flex;align-items:center;gap:8px;">
+              <label style="font-size:11px;color:#666;display:flex;align-items:center;gap:8px;cursor:pointer;">
                   <input type="checkbox" id="chrd-show-fretboard" ${CONFIG.SHOW_FRETBOARD_DIAGRAMS ? 'checked' : ''}> Fretboard on hover
               </label>
-              <div style="display:flex;gap:6px;align-items:center;margin-top:4px;">
-                  <span style="font-size:11px;color:#666;">Export:</span>
-                  <button id="export-txt" style="padding:3px 10px;border-radius:4px;border:none;background:#222;color:#aaa;cursor:pointer;font-size:11px;">TXT</button>
-                  <button id="export-json" style="padding:3px 10px;border-radius:4px;border:none;background:#222;color:#aaa;cursor:pointer;font-size:11px;">JSON</button>
-                  <button id="export-chordpro" style="padding:3px 10px;border-radius:4px;border:none;background:#222;color:#aaa;cursor:pointer;font-size:11px;">ChordPro</button>
+              <div style="display:flex;gap:5px;align-items:center;margin-top:2px;">
+                  <span style="font-size:10px;color:#444;text-transform:uppercase;letter-spacing:0.06em;font-family:ui-monospace,monospace;margin-right:2px;">Export</span>
+                  <button id="export-txt" style="padding:3px 11px;border-radius:99px;border:1px solid #222;background:transparent;color:#666;cursor:pointer;font-size:10px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;font-family:ui-monospace,monospace;transition:all 0.12s;">TXT</button>
+                  <button id="export-json" style="padding:3px 11px;border-radius:99px;border:1px solid #222;background:transparent;color:#666;cursor:pointer;font-size:10px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;font-family:ui-monospace,monospace;transition:all 0.12s;">JSON</button>
+                  <button id="export-chordpro" style="padding:3px 11px;border-radius:99px;border:1px solid #222;background:transparent;color:#666;cursor:pointer;font-size:10px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;font-family:ui-monospace,monospace;transition:all 0.12s;">ChordPro</button>
               </div>
           </div>
       `;
@@ -1844,9 +2041,22 @@
 
               if (state.enabled) {
                   state.programmatic = true;
-                  // Scroll the line into view (smoother than scrolling individual chip)
-                  (lineEl || el)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-                  setTimeout(() => { state.programmatic = false; }, 400);
+                  // Scroll so the active line sits at ~35% from top of the panel,
+                  // keeping ~65% of visible area for upcoming verses/chords.
+                  const target = lineEl || el;
+                  const panel = document.querySelector('.chorduction-panel');
+                  if (panel && target) {
+                      const panelRect = panel.getBoundingClientRect();
+                      const targetRect = target.getBoundingClientRect();
+                      const relativeTop = targetRect.top - panelRect.top;
+                      const desiredOffset = panelRect.height * 0.30;
+                      const scrollDelta = relativeTop - desiredOffset;
+                      // Only scroll if delta is significant (> 1 line height) to avoid jitter
+                      if (Math.abs(scrollDelta) > 32) {
+                          panel.scrollTo({ top: panel.scrollTop + scrollDelta, behavior: 'smooth' });
+                      }
+                  }
+                  setTimeout(() => { state.programmatic = false; }, 500);
               }
           }
       });
@@ -2013,7 +2223,10 @@
       for (const sec of labeled) {
           const secChords = chords.filter(c => c.startMs >= sec.startMs && c.startMs < sec.endMs);
           if (!secChords.length) continue;
-          const secLyrics = lyrics.filter(l => l.startMs >= sec.startMs && l.startMs < sec.endMs);
+          // Solo/instrumental sections have no sung content — pass empty lyrics so
+          // no lyric text appears in these sections (prevents duplication of surrounding verses)
+          const isInstrumental = sec.type === 'solo' || sec.type === 'instrumental' || sec.type === 'intro' || sec.type === 'outro';
+          const secLyrics = isInstrumental ? [] : lyrics.filter(l => l.startMs >= sec.startMs && l.startMs < sec.endMs);
           result.push({ ...sec, lines: buildChordLines(secChords, secLyrics) });
       }
       // Catch any chords before the first labeled section (e.g. no intro detected)
@@ -2114,40 +2327,47 @@
   // =============================
   function consolidateChords(chords, level) {
       if (!chords || !chords.length) return chords;
+
       function simplifyName(chord, lvl) {
           if (!chord || chord === 'N') return chord;
           if (lvl === 1) {
-              // Level 1: basics only — strip all extensions, keep root + major/minor quality
+              // Basics only: keep root + major/minor quality only
+              // Order matters: most specific patterns first
               return chord
                   .replace(/maj7|maj9|maj11|maj13|M7/g, '')
-                  .replace(/m7b5|m7|m9|m11|m13/g, 'm')
-                  .replace(/7|9|11|13|sus[24]|add\d+|\+/g, '')
+                  .replace(/m7b5/g, 'dim')
+                  .replace(/m7|m9|m11|m13/g, 'm')
                   .replace(/dim7/g, 'dim')
-                  .replace(/aug/g, '')
-                  .trim() || chord;
+                  .replace(/[0-9]+/g, '')      // strip any remaining numeric extensions (7,9,11,13)
+                  .replace(/sus[24]|add[0-9]+|aug|\+/g, '')
+                  .replace(/\s+/g, '')
+                  || chord;
           }
           if (lvl === 2) {
-              // Level 2: 7ths only — strip 9ths and higher
+              // 7ths vocabulary: keep 7ths, fold 9/11/13 down to 7
               return chord
                   .replace(/maj9|maj11|maj13/g, 'maj7')
                   .replace(/m9|m11|m13/g, 'm7')
-                  .replace(/(?<![a-z])9|11|13/g, '7')
-                  .replace(/sus[24]|add\d+/g, '')
-                  .trim() || chord;
+                  .replace(/m7b5/g, 'm7b5')    // keep half-dim as-is
+                  .replace(/(?<!maj|m)(9|11|13)/g, '7')  // fold C9/C11/C13 → C7
+                  .replace(/sus[24]|add[0-9]+/g, '')
+                  .replace(/\s+/g, '')
+                  || chord;
           }
-          return chord; // level 3 = full extensions, no change
+          return chord; // Level 3: full extensions, no change
       }
-      // Min duration thresholds (ms) — chords shorter than this merge into previous
-      const minMs = level === 1 ? 2000 : level === 2 ? 1000 : 500;
-      // First pass: simplify names
+
+      // Pass 1: simplify chord names according to level
       const simplified = chords.map(c => ({ ...c, chord: simplifyName(c.chord, level) }));
-      // Second pass: merge consecutive identical + too-short chords
+
+      // Pass 2: merge only consecutive identical chords.
+      // Duration-based merging is removed — bar-level detection already produces
+      // one chord per bar; aggressive duration filtering causes all chords to collapse
+      // at tempos > 120 BPM. Name simplification (Level 1: C7→C) naturally increases
+      // consecutive merges without needing a duration threshold.
       const result = [];
       for (const c of simplified) {
-          const dur = (c.endMs || 0) - (c.startMs || 0);
           if (result.length > 0 && result[result.length - 1].chord === c.chord) {
-              result[result.length - 1] = { ...result[result.length - 1], endMs: c.endMs };
-          } else if (dur < minMs && result.length > 0) {
               result[result.length - 1] = { ...result[result.length - 1], endMs: c.endMs };
           } else {
               result.push({ ...c });
@@ -2346,6 +2566,10 @@
   
       extensionCleanup.addListener(Spicetify.Player, "ontrackchange", () => {
           if (CONFIG.AUTO_REFRESH_ON_SONG_CHANGE) {
+              // Reset all guards so the new track always gets a fresh analysis
+              currentAnalysis = null;
+              lastAttemptedTrackId = null;
+              lastAnalysisStartMs = 0;
               analyzeCurrentTrack();
           }
       });

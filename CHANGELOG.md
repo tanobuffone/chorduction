@@ -5,6 +5,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), version
 
 ---
 
+## [6.5.0] — 2026-03-21
+
+### Fixed
+- **Autoscroll centering**: Active line now scrolls to 30% from the top of the panel — keeps ~70% of the visible area showing upcoming verses/chords. Previously used `scrollIntoView({block:'nearest'})` which pushed active content to the very bottom. Scroll only triggers when delta > 32px to avoid jitter
+- **Track change detection**: Global `ontrackchange` handler now resets `currentAnalysis`, `lastAttemptedTrackId`, and `lastAnalysisStartMs` before calling `analyzeCurrentTrack()`. Previously, stale guards could block re-analysis of a new song if the debounce window hadn't expired or if the track had been attempted before. Panel's own `ontrackchange` handler also resets all three guards
+- **Chord complexity levels broken**: Removed duration-based merging (`minMs`) from `consolidateChords`. The 2000ms/1000ms/500ms thresholds were designed for beat-level detection — with bar-level detection, every bar-chord at tempos >120 BPM has duration ≤ 2000ms, causing ALL chords to collapse into one at Level 1. Levels now exclusively affect name simplification (C7→C at L1, Am9→Am7 at L2), with only consecutive identical-name merging preserved
+- **Lyric duplication in instrumental sections**: Solo, instrumental, intro, and outro sections no longer show lyric text from adjacent sung sections. `buildStructuredSections` passes empty lyrics to `buildChordLines` for these section types — `line.text` stays null, no lyric div is rendered
+- **`consolidateChords` Level 1 regex**: Replaced `add\d+` and `add[0-9]+` with a simpler `[0-9]+` catch-all to strip all remaining numeric extensions; `m7b5` now maps to `dim` at Level 1 instead of incorrectly mapping to `m`
+
+### Changed
+- **Controls bar grouped**: Transport controls (⏮ ▶ ⏭ 🔄) now in a visually separated left group with a divider; musical settings (autoscroll · ♭/♯ · notation · level) in a right group. Eliminates the 8-button flat row that the user flagged as unclear
+- **UI design overhaul**: Complete CSS redesign
+  - Header: linear gradient background, decorative green gradient line underline
+  - Pills: monospace font, tighter uppercase label style
+  - Section headers: label now a rounded badge (colored border + background tint) instead of plain text; gradient fade-out lines
+  - Chord chips: darker resting state, function-tinted backgrounds, glow ring on active chip (double box-shadow with ring + blur)
+  - Lyric lines: left border accent on active line, subtle pulsing dot indicator
+  - Selects/controls: uppercase monospace style, `appearance:none` for clean cross-platform look
+  - Settings section: styled `<details>` with `chorduction-settings-section` class and CSS `::before` icon
+  - Scrollbar: thin 4px width, dark thumb, transparent track
+
+---
+
 ## [6.4.0] — 2026-03-21
 
 ### Fixed
