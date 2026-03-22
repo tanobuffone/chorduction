@@ -1,6 +1,6 @@
 // chorduction.js
 // Chorduction — Spicetify extension for chord analysis + per-chord lyrics
-// Version: 6.3.0 - Fix fretboard hover, chord consolidation, prev/next as song nav, re-analyze button
+// Version: 6.4.0 - Bar-level harmonic detection, correct lyric sync, solo section detection, measure-aligned display
 
 (function () {
   "use strict";
@@ -382,6 +382,8 @@
           .chorduction-sec-hdr[data-type="bridge"] .chorduction-sec-hdr-line { background: #ff8c1a28; }
           .chorduction-sec-hdr[data-type="intro"] .chorduction-sec-hdr-label,
           .chorduction-sec-hdr[data-type="outro"] .chorduction-sec-hdr-label { color: #666; }
+          .chorduction-sec-hdr[data-type="solo"] .chorduction-sec-hdr-label { color: #c084fc; }
+          .chorduction-sec-hdr[data-type="solo"] .chorduction-sec-hdr-line { background: #c084fc28; }
 
           /* === Lyric Lines === */
           .chorduction-line { margin: 8px 0; padding: 4px 6px; border-radius: 5px; transition: background 0.25s; }
@@ -1183,29 +1185,57 @@
           log.info(`Detected key: ${detectedKey}`);
 
           const rawChords = [];
-          let currentChord = null, chordStart = 0, beatCount = 0;
-          const smoothingBeats = CONFIG.SMOOTHING_BEATS;
+          const bars = analysis.bars || [];
 
-          for (const beat of beats) {
-              const segment = this.findSegmentForTime(beat.start, analysis.segments);
-              if (!segment?.pitches?.length) continue;
-              const result = this.detectChord(segment.pitches);
-              if (result.chord === currentChord || beatCount < smoothingBeats) {
-                  if (beatCount >= smoothingBeats && result.confidence > 0.3) currentChord = result.chord;
-              } else {
-                  if (currentChord) rawChords.push({ chord: currentChord, startMs: chordStart * 1000, endMs: beat.start * 1000, confidence: result.confidence });
-                  currentChord = result.chord;
-                  chordStart = beat.start;
+          if (bars.length >= 4) {
+              // Bar-level detection: average all segment pitches within each bar.
+              // Averaging over a full bar (4 beats) lets vocal melody notes cancel out while
+              // the sustained harmonic structure (the chord) accumulates — better quality for
+              // sung sections AND solos where beat-level chroma is dominated by the melody.
+              for (const bar of bars) {
+                  const barSegments = analysis.segments.filter(
+                      s => s.start >= bar.start && s.start < bar.start + bar.duration && s.pitches?.length === 12
+                  );
+                  if (!barSegments.length) continue;
+                  const avgPitches = new Array(12).fill(0);
+                  for (const seg of barSegments) {
+                      for (let i = 0; i < 12; i++) avgPitches[i] += seg.pitches[i];
+                  }
+                  for (let i = 0; i < 12; i++) avgPitches[i] /= barSegments.length;
+                  const result = this.detectChord(avgPitches);
+                  rawChords.push({
+                      chord: result.chord,
+                      startMs: Math.round(bar.start * 1000),
+                      endMs: Math.round((bar.start + bar.duration) * 1000),
+                      confidence: result.confidence
+                  });
               }
-              beatCount++;
-          }
-          if (currentChord) {
-              const lastBeat = beats[beats.length - 1];
-              rawChords.push({ chord: currentChord, startMs: chordStart * 1000, endMs: lastBeat ? (lastBeat.start + lastBeat.duration) * 1000 : 0, confidence: CONFIG.MIN_CONFIDENCE });
+          } else {
+              // Fallback: beat-level with smoothing (for tracks without usable bar data)
+              let currentChord = null, chordStart = 0, beatCount = 0;
+              const smoothingBeats = CONFIG.SMOOTHING_BEATS;
+              for (const beat of beats) {
+                  const segment = this.findSegmentForTime(beat.start, analysis.segments);
+                  if (!segment?.pitches?.length) continue;
+                  const result = this.detectChord(segment.pitches);
+                  if (result.chord === currentChord || beatCount < smoothingBeats) {
+                      if (beatCount >= smoothingBeats && result.confidence > 0.3) currentChord = result.chord;
+                  } else {
+                      if (currentChord) rawChords.push({ chord: currentChord, startMs: chordStart * 1000, endMs: beat.start * 1000, confidence: result.confidence });
+                      currentChord = result.chord;
+                      chordStart = beat.start;
+                  }
+                  beatCount++;
+              }
+              if (currentChord) {
+                  const lastBeat = beats[beats.length - 1];
+                  rawChords.push({ chord: currentChord, startMs: chordStart * 1000, endMs: lastBeat ? (lastBeat.start + lastBeat.duration) * 1000 : 0, confidence: CONFIG.MIN_CONFIDENCE });
+              }
           }
 
           return {
               rawChords,
+              bars,
               key: detectedKey,
               confidence: rawChords.reduce((s, c) => s + (c.confidence || 0), 0) / Math.max(rawChords.length, 1),
               tempo: analysis.track?.tempo || 0
@@ -1238,16 +1268,15 @@
   // =============================
   function syncChordsToLyrics(chords, lyrics) {
       if (!lyrics?.length) return chords;
-  
       return chords.map(chord => {
-          // Find lyric closest to chord start
-          const closestLyric = lyrics.find(l => l.startMs >= chord.startMs) ||
-                               lyrics[lyrics.length - 1];
-          
-          return {
-              ...chord,
-              lyric: closestLyric?.text || null
-          };
+          // Find the lyric line active at chord.startMs:
+          // last line whose startMs is <= chord.startMs (the line currently being sung)
+          let activeLyric = null;
+          for (let i = lyrics.length - 1; i >= 0; i--) {
+              if (lyrics[i].startMs <= chord.startMs) { activeLyric = lyrics[i]; break; }
+          }
+          if (!activeLyric) activeLyric = lyrics[0];
+          return { ...chord, lyric: activeLyric?.text || null };
       });
   }
   
@@ -1521,9 +1550,11 @@
       prevBtn.innerHTML = '⏮'; prevBtn.title = 'Restart song (prev song if at start)';
       prevBtn.onclick = () => {
           const ms = Spicetify.Player.getProgress?.() ?? 0;
-          const idx = binarySearchChords(ms);
-          const isWellPast = idx >= 0 && (ms - (chordPlayState.chords[idx]?.startMs ?? 0)) > 800;
-          seekToChord(isWellPast ? idx : Math.max(0, idx - 1));
+          if (ms > 3000) {
+              Spicetify.Player.seek(0);
+          } else {
+              Spicetify.Player.back?.();
+          }
       };
 
       const playBtn = document.createElement('button');
@@ -1863,35 +1894,53 @@
   }
 
   function buildChordLines(chords, lyrics) {
-      if (!lyrics?.length) {
-          const BAR_MS = 4000;
+      if (lyrics?.length) {
+          // Group chords by active lyric line (each distinct lyric line = one visual row)
           const lines = [];
-          let bar = null;
+          let cur = null;
           for (const chord of chords) {
-              const bi = Math.floor(chord.startMs / BAR_MS);
-              if (!bar || bi !== bar.barIdx) {
-                  if (bar) lines.push(bar);
-                  bar = { barIdx: bi, startMs: bi * BAR_MS, endMs: (bi + 1) * BAR_MS, text: null, chords: [] };
+              if (!cur || chord.lyric !== cur.text) {
+                  if (cur) { cur.endMs = chord.startMs; lines.push(cur); }
+                  cur = { startMs: chord.startMs, endMs: 0, text: chord.lyric, chords: [] };
               }
-              bar.chords.push(chord);
+              cur.chords.push(chord);
           }
-          if (bar) lines.push(bar);
+          if (cur) {
+              const last = chords[chords.length - 1];
+              cur.endMs = last.endMs || (last.startMs + 4000);
+              lines.push(cur);
+          }
           return lines;
       }
-      const lines = [];
-      let cur = null;
-      for (const chord of chords) {
-          if (!cur || chord.lyric !== cur.text) {
-              if (cur) { cur.endMs = chord.startMs; lines.push(cur); }
-              cur = { startMs: chord.startMs, endMs: 0, text: chord.lyric, chords: [] };
+
+      // No lyrics: group 2 bars per visual line for readable measure-aligned display
+      const analysisBars = currentAnalysis?.bars;
+      if (analysisBars?.length >= 4) {
+          const lines = [];
+          const BARS_PER_LINE = 2;
+          for (let i = 0; i < analysisBars.length; i += BARS_PER_LINE) {
+              const lineStartMs = Math.round(analysisBars[i].start * 1000);
+              const lastBar = analysisBars[Math.min(i + BARS_PER_LINE - 1, analysisBars.length - 1)];
+              const lineEndMs = Math.round((lastBar.start + lastBar.duration) * 1000);
+              const lineChords = chords.filter(c => c.startMs >= lineStartMs && c.startMs < lineEndMs);
+              if (lineChords.length) lines.push({ startMs: lineStartMs, endMs: lineEndMs, text: null, chords: lineChords });
           }
-          cur.chords.push(chord);
+          if (lines.length) return lines;
       }
-      if (cur) {
-          const last = chords[chords.length - 1];
-          cur.endMs = last.endMs || (last.startMs + 4000);
-          lines.push(cur);
+
+      // Final fallback: 4-second fixed windows
+      const BAR_MS = 4000;
+      const lines = [];
+      let bar = null;
+      for (const chord of chords) {
+          const bi = Math.floor(chord.startMs / BAR_MS);
+          if (!bar || bi !== bar.barIdx) {
+              if (bar) lines.push(bar);
+              bar = { barIdx: bi, startMs: bi * BAR_MS, endMs: (bi + 1) * BAR_MS, text: null, chords: [] };
+          }
+          bar.chords.push(chord);
       }
+      if (bar) lines.push(bar);
       return lines;
   }
 
@@ -1921,21 +1970,31 @@
       return 'neutral';
   }
 
-  function labelSections(sections) {
+  function labelSections(sections, lyrics) {
       if (!sections?.length) return [];
       const n = sections.length;
       const avgLoud = sections.reduce((s, x) => s + x.loudness, 0) / n;
-      let verse = 0, chorus = 0, bridge = 0;
+      let verse = 0, chorus = 0, bridge = 0, solo = 0;
       return sections.map((sec, i) => {
           const startMs = Math.round(sec.start * 1000);
           const endMs = Math.round((sec.start + sec.duration) * 1000);
           const dur = sec.duration;
+          // Intro/Outro by position + short duration
           if (i === 0 && dur < 25) return { startMs, endMs, label: 'Intro', type: 'intro' };
           if (i === n - 1 && dur < 25) return { startMs, endMs, label: 'Outro', type: 'outro' };
+          // Instrumental / Solo: middle section with no associated lyrics
+          // (lyrics are available = sung section; no lyrics = instrumental passage or solo)
+          const hasLyrics = lyrics?.some(l => l.startMs >= startMs && l.startMs < endMs);
+          if (!hasLyrics && lyrics?.length && dur > 5 && i > 0 && i < n - 1) {
+              solo++;
+              return { startMs, endMs, label: solo > 1 ? `Solo ${solo}` : 'Solo', type: 'solo' };
+          }
+          // Very short middle section = bridge/transition
           if (dur < 9 && i > 0 && i < n - 1) {
               bridge++;
               return { startMs, endMs, label: bridge > 1 ? `Bridge ${bridge}` : 'Bridge', type: 'bridge' };
           }
+          // Louder than average = chorus
           if (sec.loudness > avgLoud + 1.5) {
               chorus++;
               return { startMs, endMs, label: chorus > 1 ? `Chorus ${chorus}` : 'Chorus', type: 'chorus' };
@@ -1946,7 +2005,7 @@
   }
 
   function buildStructuredSections(audioSections, chords, lyrics) {
-      const labeled = labelSections(audioSections);
+      const labeled = labelSections(audioSections, lyrics);
       if (!labeled.length) {
           return [{ label: '', type: 'song', startMs: 0, endMs: Infinity, lines: buildChordLines(chords, lyrics) }];
       }
@@ -2224,6 +2283,7 @@
               key: result.key,
               lyrics: lyricsResult.lines,
               sections: analysis.sections || [],
+              bars: result.bars || [],
               tempo: result.tempo
           };
 

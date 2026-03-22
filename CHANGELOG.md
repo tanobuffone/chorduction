@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), version
 
 ---
 
+## [6.4.0] — 2026-03-21
+
+### Fixed
+- **`syncChordsToLyrics` direction bug**: Was finding the *next* lyric line after a chord (`startMs >= chord.startMs`), so chords were assigned to the wrong line — one line ahead. Now finds the *active* line (last line whose `startMs ≤ chord.startMs`), which is the line actually being sung when the chord plays
+- **`prevBtn`**: Was still doing chord navigation internally (regression from v6.3.0 Python patch). Now correctly restarts song (`seek(0)`) if >3s in, or goes to previous track
+
+### Changed
+- **Bar-level chord detection**: `processAnalysis` now averages all segment pitches within each bar before detecting the chord (instead of per-beat). Averaging over 4 beats lets vocal melody notes cancel out while the harmonic structure accumulates — drastically reduces chord density and melodic contamination. Falls back to beat-level with smoothing if bar data is unavailable
+- **Measure-aligned line grouping**: `buildChordLines` now groups chords into 2-bars-per-line visual rows when no lyrics are available, using the actual `bars` array from Spotify audio analysis. Previously used arbitrary 4-second fixed windows
+
+### Added
+- **Solo/Instrumental section detection**: `labelSections` now receives lyrics and detects middle sections with no lyric content as "Solo" (purple section header). This correctly identifies guitar solos, instrumental breaks, and interludes — showing the underlying harmonic structure rather than attempting to follow the melody
+- **`bars` stored in `currentAnalysis`**: Available for future use in rhythm display, time signature visualization, etc.
+- **Solo CSS**: Purple (`#c084fc`) section header for `type: 'solo'` sections, visually distinct from verse (blue), chorus (green), bridge (orange)
+
+---
+
 ## [6.3.0] — 2026-03-21
 
 ### Fixed
